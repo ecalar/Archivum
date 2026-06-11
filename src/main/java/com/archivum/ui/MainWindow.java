@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import com.archivum.ui.FiltroDialog;
 
 @Component
 public class MainWindow extends Application {
@@ -52,6 +53,7 @@ public class MainWindow extends Application {
 
     @Override
     public void start(Stage stage) {
+        stage.setMaximized(true);
         this.stage = stage;
         stage.setTitle("Archivum - Archivo Documental");
         stage.setMinWidth(900);
@@ -236,8 +238,20 @@ public class MainWindow extends Application {
     }
 
     private void mostrarFiltros() {
-        // Implementar Día 5
-        mostrarEstado("Filtros disponibles próximamente");
+        FiltroDialog filtro = new FiltroDialog();
+        if (filtro.mostrar()) {
+            List<Documento> resultados = service.buscar(
+                    null,
+                    filtro.getTipo(),
+                    filtro.getDesde(),
+                    filtro.getHasta(),
+                    filtro.getAnio()
+            );
+            documentosList.setAll(resultados);
+            actualizarContador();
+            estadoLabel.setText("✅ Filtros aplicados - " + resultados.size() + " resultado(s)");
+            estadoLabel.setStyle("-fx-text-fill: #2D6A4F;");
+        }
     }
 
     private void nuevoDocumento() {
