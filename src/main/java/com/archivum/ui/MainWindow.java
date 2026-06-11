@@ -224,7 +224,7 @@ public class MainWindow extends Application {
     }
 
     private void nuevoDocumento() {
-        DocumentoFormDialog dialog = new DocumentoFormDialog(service, () -> {
+        DocumentoFormDialog dialog = new DocumentoFormDialog(service, null, () -> {
             Platform.runLater(this::cargarDocumentos);
         });
         dialog.mostrar();
@@ -232,7 +232,11 @@ public class MainWindow extends Application {
     }
 
     private void verDetalle(Documento doc) {
-        mostrarEstado("Detalle de: " + doc.getTitulo() + " (Día 5)");
+        DocumentoDetailDialog dialog = new DocumentoDetailDialog(service, doc, () -> {
+            Platform.runLater(this::cargarDocumentos);
+        });
+        dialog.mostrar();
+        actualizarEstadoListo();
     }
 
     private void hacerBackup() {
