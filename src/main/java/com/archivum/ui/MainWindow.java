@@ -34,6 +34,8 @@ public class MainWindow extends Application {
     private Label estadoLabel;
     private Label contadorLabel;
 
+    private Button papeleraBtn;
+
     @Override
     public void init() {
         context = new SpringApplicationBuilder(com.archivum.ArchivumApplication.class).run();
@@ -99,7 +101,7 @@ public class MainWindow extends Application {
         backupBtn.setStyle("-fx-background-color: #6C6C6C; -fx-text-fill: white;");
         backupBtn.setOnAction(e -> hacerBackup());
 
-        Button papeleraBtn = new Button("Papelera");
+        papeleraBtn = new Button("Papelera (0)");
         papeleraBtn.setStyle("-fx-background-color: #C1292E; -fx-text-fill: white;");
         papeleraBtn.setOnAction(e -> abrirPapelera());
 
@@ -199,6 +201,8 @@ public class MainWindow extends Application {
         List<Documento> docs = service.obtenerTodos();
         documentosList.setAll(docs);
         actualizarContador();
+        long enPapelera = service.contarDocumentosEnPapelera();
+        papeleraBtn.setText("Papelera" + (enPapelera > 0 ? " (" + enPapelera + ")" : ""));
     }
 
     private void buscar() {
@@ -244,7 +248,11 @@ public class MainWindow extends Application {
     }
 
     private void abrirPapelera() {
-        mostrarEstado("Papelera (Día 6)");
+        PapeleraDialog dialog = new PapeleraDialog(service, () -> {
+            Platform.runLater(this::cargarDocumentos);
+        });
+        dialog.mostrar();
+        actualizarEstadoListo();
     }
 
     private void mostrarEstado(String mensaje) {
