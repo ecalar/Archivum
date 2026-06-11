@@ -17,7 +17,7 @@ import javafx.stage.Stage;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.stereotype.Component;
-
+import javafx.application.Platform;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -224,7 +224,11 @@ public class MainWindow extends Application {
     }
 
     private void nuevoDocumento() {
-        mostrarEstado("Nuevo documento (Día 4)");
+        DocumentoFormDialog dialog = new DocumentoFormDialog(service, () -> {
+            Platform.runLater(this::cargarDocumentos);
+        });
+        dialog.mostrar();
+        actualizarEstadoListo();
     }
 
     private void verDetalle(Documento doc) {
@@ -249,5 +253,10 @@ public class MainWindow extends Application {
         if (context != null) {
             context.close();
         }
+    }
+
+    private void actualizarEstadoListo() {
+        estadoLabel.setText("Listo");
+        estadoLabel.setStyle("-fx-text-fill: #2D6A4F;");
     }
 }
