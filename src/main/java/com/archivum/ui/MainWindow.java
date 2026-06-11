@@ -17,7 +17,10 @@ import javafx.stage.Stage;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.stereotype.Component;
-import javafx.application.Platform;
+import com.archivum.service.BackupService;
+import javafx.stage.DirectoryChooser;
+import java.io.File;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -36,14 +39,20 @@ public class MainWindow extends Application {
 
     private Button papeleraBtn;
 
+    private BackupService backupService;
+    private Stage stage;
+
+
     @Override
     public void init() {
         context = new SpringApplicationBuilder(com.archivum.ArchivumApplication.class).run();
         service = context.getBean(DocumentoService.class);
+        backupService = context.getBean(BackupService.class);
     }
 
     @Override
     public void start(Stage stage) {
+        this.stage = stage;
         stage.setTitle("Archivum - Archivo Documental");
         stage.setMinWidth(900);
         stage.setMinHeight(600);
@@ -101,6 +110,10 @@ public class MainWindow extends Application {
         backupBtn.setStyle("-fx-background-color: #6C6C6C; -fx-text-fill: white;");
         backupBtn.setOnAction(e -> hacerBackup());
 
+        Button restaurarBtn = new Button("Restaurar");
+        restaurarBtn.setStyle("-fx-background-color: #C9A84C; -fx-text-fill: #4A0E17;");
+        restaurarBtn.setOnAction(e -> restaurarBackup());
+
         papeleraBtn = new Button("Papelera (0)");
         papeleraBtn.setStyle("-fx-background-color: #C1292E; -fx-text-fill: white;");
         papeleraBtn.setOnAction(e -> abrirPapelera());
@@ -108,7 +121,7 @@ public class MainWindow extends Application {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        buscadorBox.getChildren().addAll(busquedaField, filtrosBtn, spacer, nuevoBtn, backupBtn, papeleraBtn);
+        buscadorBox.getChildren().addAll(busquedaField, filtrosBtn, spacer, nuevoBtn, backupBtn, papeleraBtn, restaurarBtn);
 
         barra.getChildren().addAll(tituloApp, buscadorBox);
         return barra;
@@ -244,7 +257,41 @@ public class MainWindow extends Application {
     }
 
     private void hacerBackup() {
-        mostrarEstado("Backup (Día 7)");
+        DirectoryChooser directoryChooser = new DirectoryChooser();
+        directoryChooser.setTitle("Seleccionar carpeta para guardar el backup");
+        File carpeta = directoryChooser.showDialog(stage);
+
+        if (carpeta != null) {
+            try {
+                File backup = backupService.crearBackup();
+
+                // Mover el backup a la carpeta elegida
+                File destino = new File(carpeta, backup.getName());
+                java.nio.file.Files.move(backup.toPath(), destino.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+
+                String tamanio = formatearTamanio(destino.length());
+
+                Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                alert.setTitle("Backup creado");
+                alert.setHeaderText("Copia de seguridad creada correctamente");
+                alert.setContentText("Archivo: " + destino.getName() + "\nTamaño: " + tamanio +
+                        "\nUbicación: " + destino.getAbsolutePath());
+                alert.showAndWait();
+
+                estadoLabel.setText("✅ Backup creado: " + destino.getName());
+                estadoLabel.setStyle("-fx-text-fill: #2D6A4F;");
+
+            } catch (Exception ex) {
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setTitle("Error");
+                alert.setHeaderText("Error al crear backup");
+                alert.setContentText(ex.getMessage());
+                alert.showAndWait();
+                estadoLabel.setText("❌ Error en backup");
+                estadoLabel.setStyle("-fx-text-fill: #C1292E;");
+            }
+        }
     }
 
     private void abrirPapelera() {
@@ -270,5 +317,73 @@ public class MainWindow extends Application {
     private void actualizarEstadoListo() {
         estadoLabel.setText("Listo");
         estadoLabel.setStyle("-fx-text-fill: #2D6A4F;");
+    }
+
+    private void restaurarBackup() {
+        // Primera advertencia
+        Alert advertencia = new Alert(Alert.AlertType.WARNING);
+        advertencia.setTitle("Restaurar backup");
+        advertencia.setHeaderText("¡ATENCIÓN! Se reemplazarán TODOS los datos actuales");
+        advertencia.setContentText("Los documentos actuales y sus archivos serán reemplazados " +
+                "por los contenidos en el backup.\n\n¿Desea continuar?");
+
+        ButtonType btnContinuar = new ButtonType("Continuar");
+        ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        advertencia.getButtonTypes().setAll(btnContinuar, btnCancelar);
+
+        if (advertencia.showAndWait().orElse(btnCancelar) != btnContinuar) {
+            return;
+        }
+
+        // Seleccionar archivo ZIP
+        javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
+        fileChooser.setTitle("Seleccionar archivo de backup");
+        fileChooser.getExtensionFilters().add(
+                new javafx.stage.FileChooser.ExtensionFilter("Backup de Archivum", "*.zip")
+        );
+        File archivoZip = fileChooser.showOpenDialog(stage);
+
+        if (archivoZip == null) return;
+
+        // Segunda confirmación
+        TextInputDialog confirmacion = new TextInputDialog();
+        confirmacion.setTitle("Confirmación final");
+        confirmacion.setHeaderText("Escriba RESTAURAR para confirmar");
+        confirmacion.setContentText("Esta acción es irreversible:");
+
+        if (confirmacion.showAndWait().map(t -> "RESTAURAR".equals(t.trim())).orElse(false)) {
+            try {
+                backupService.restaurarBackup(archivoZip);
+
+                Alert exito = new Alert(Alert.AlertType.INFORMATION);
+                exito.setTitle("Restauración completada");
+                exito.setHeaderText("Backup restaurado correctamente");
+                exito.setContentText("La aplicación se reiniciará para cargar los nuevos datos.");
+                exito.showAndWait();
+
+                // Reiniciar aplicación
+                stage.close();
+                context.close();
+                Platform.runLater(() -> {
+                    try {
+                        new ProcessBuilder("java", "-jar", "target/archivum-1.0.0.jar").inheritIO().start();
+                    } catch (IOException ignored) {}
+                    Platform.exit();
+                });
+
+            } catch (Exception ex) {
+                Alert error = new Alert(Alert.AlertType.ERROR);
+                error.setTitle("Error");
+                error.setHeaderText("Error al restaurar backup");
+                error.setContentText(ex.getMessage());
+                error.showAndWait();
+            }
+        }
+    }
+
+    private String formatearTamanio(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
+        return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
     }
 }
