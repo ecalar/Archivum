@@ -1,0 +1,53 @@
+/* ARCHIVUM - Estilos */
+
+.root {
+    -fx-font-family: "System", sans-serif;
+    -fx-font-size: 13px;
+}
+
+.table-view {
+    -fx-border-color: #E8E5DF;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+}
+
+.table-view .column-header {
+    -fx-background-color: #F5F0E8;
+    -fx-border-color: #E8E5DF;
+    -fx-border-width: 0px 0px 2px 0px;
+    -fx-padding: 10px;
+}
+
+.table-view .column-header .label {
+    -fx-font-weight: bold;
+    -fx-text-fill: #4A0E17;
+}
+
+.table-row-cell {
+    -fx-padding: 8px;
+}
+
+.table-row-cell:hover {
+    -fx-background-color: #F5F0E8;
+}
+
+.table-row-cell:selected {
+    -fx-background-color: #E8E5DF;
+}
+
+.button:hover {
+    -fx-opacity: 0.85;
+    -fx-cursor: hand;
+}
+
+.text-field {
+    -fx-background-radius: 4px;
+    -fx-border-radius: 4px;
+    -fx-border-color: #E8E5DF;
+    -fx-border-width: 1px;
+}
+
+.text-field:focused {
+    -fx-border-color: #C9A84C;
+    -fx-border-width: 2px;
+}

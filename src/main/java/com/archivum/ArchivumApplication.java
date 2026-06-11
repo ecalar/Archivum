@@ -1,12 +1,13 @@
 package com.archivum;
 
-import org.springframework.boot.SpringApplication;
+import com.archivum.ui.MainWindow;
+import javafx.application.Application;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 public class ArchivumApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(ArchivumApplication.class, args);
+        Application.launch(MainWindow.class, args);
     }
 }
