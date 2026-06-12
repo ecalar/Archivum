@@ -1,60 +1,118 @@
+/* --- Base y Tipografía --- */
 .root {
-    -fx-font-family: "System", sans-serif;
-    -fx-font-size: 13px;
-    -fx-background-color: #F5F1EC;
+    -fx-font-family: "Segoe UI", "Inter", sans-serif;
+    -fx-font-size: 14px;
+    -fx-background-color: transparent;
 }
 
+/* --- Tabla de Datos --- */
 .table-view {
-    -fx-border-color: #E8E0D8;
-    -fx-border-radius: 10px;
-    -fx-background-radius: 10px;
-    -fx-background-color: white;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
     -fx-table-cell-border-color: transparent;
 }
 
+.table-view .column-header-background {
+    -fx-background-color: transparent;
+}
+
 .table-view .column-header {
-    -fx-background-color: #FAF7F4;
-    -fx-border-color: #E8E0D8;
-    -fx-border-width: 0 0 2px 0;
-    -fx-padding: 16px;
+    -fx-background-color: #FAFCFB; /* Blanco con un levísimo tinte verde */
+    -fx-border-width: 0 0 1px 0;
+    -fx-border-color: #D1DED5;
+    -fx-padding: 16px 12px;
 }
 
 .table-view .column-header .label {
     -fx-font-weight: 700;
-    -fx-text-fill: #5D4037;
+    -fx-text-fill: #4D6B58;
     -fx-font-size: 12px;
-    -fx-letter-spacing: 0.3px;
+    -fx-text-transform: uppercase;
+    -fx-alignment: center-left;
 }
 
 .table-row-cell {
-    -fx-padding: 12px 16px;
-    -fx-border-color: transparent transparent #F0EBE4 transparent;
+    -fx-padding: 12px;
     -fx-background-color: white;
+    -fx-border-width: 0 0 1px 0;
+    -fx-border-color: transparent transparent #F4F7F5 transparent;
 }
 
-.table-row-cell:hover {-fx-background-color: #F8F5F0; -fx-cursor: hand;}
-.table-row-cell:selected {-fx-background-color: #EDE4D9;}
-.table-row-cell:selected .text {-fx-fill: #2C1810;}
+.table-row-cell:hover {
+    -fx-background-color: #FAFCFB;
+    -fx-cursor: hand;
+}
 
+.table-row-cell:selected {
+    -fx-background-color: #EBF2ED; /* Fondo verde muy claro al seleccionar */
+}
+
+.table-row-cell:selected .text {
+    -fx-fill: #12261A; /* Verde oscuro vibrante en la selección */
+    -fx-font-weight: 600;
+}
+
+.table-view .filler, .table-view .column-header-background {
+    -fx-background-color: transparent;
+}
+
+/* --- Inputs y Controles --- */
 .text-field, .text-area, .combo-box, .date-picker {
-    -fx-background-radius: 8px;
-    -fx-border-radius: 8px;
-    -fx-border-color: #D5CCC2;
+    -fx-background-color: #FAFCFB;
+    -fx-background-radius: 6px;
+    -fx-border-radius: 6px;
+    -fx-border-color: #D1DED5;
     -fx-border-width: 1px;
     -fx-padding: 10px 14px;
+    -fx-text-fill: #12261A;
 }
+
 .text-field:focused, .text-area:focused, .combo-box:focused, .date-picker:focused {
-    -fx-border-color: #8B6E5C;
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #2A6B44; /* Borde verde esmeralda al hacer clic */
+    -fx-effect: dropshadow(three-pass-box, rgba(42, 107, 68, 0.2), 6, 0, 0, 0);
 }
 
-.button {-fx-background-radius: 8px; -fx-padding: 10px 18px; -fx-cursor: hand;}
-.button:hover {-fx-opacity: 0.92;}
-.button:pressed {-fx-opacity: 0.85;}
+/* --- Botones --- */
+.button {
+    -fx-background-radius: 6px;
+    -fx-padding: 10px 18px;
+    -fx-cursor: hand;
+    -fx-font-weight: 600;
+    -fx-transition: all 0.2s ease;
+}
 
-.scroll-bar:vertical {-fx-background-color: transparent; -fx-pref-width: 8px;}
-.scroll-bar:vertical .thumb {-fx-background-color: #C7BFB4; -fx-background-radius: 4px;}
-.scroll-bar:vertical .track {-fx-background-color: transparent;}
+.button:hover {
+    -fx-opacity: 0.85;
+    -fx-effect: dropshadow(three-pass-box, rgba(18, 38, 26, 0.15), 8, 0, 0, 3);
+}
 
-.dialog-pane {-fx-background-color: white;}
-.dialog-pane .header-panel {-fx-background-color: #2C1810;}
-.dialog-pane .header-panel .label {-fx-text-fill: white; -fx-font-weight: 700;}
+.button:pressed {
+    -fx-opacity: 0.7;
+    -fx-effect: none;
+    -fx-translate-y: 1px;
+}
+
+/* --- Scrollbars --- */
+.scroll-bar:vertical, .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+}
+.scroll-bar:vertical .thumb, .scroll-bar:horizontal .thumb {
+    -fx-background-color: #A3B8A8;
+    -fx-background-radius: 10px;
+}
+.scroll-bar:vertical .track, .scroll-bar:horizontal .track {
+    -fx-background-color: transparent;
+}
+
+/* --- Diálogos Modales --- */
+.dialog-pane {
+    -fx-background-color: white;
+}
+.dialog-pane .header-panel {
+    -fx-background-color: #12261A;
+}
+.dialog-pane .header-panel .label {
+    -fx-text-fill: white; 
+    -fx-font-weight: 700;
+}
