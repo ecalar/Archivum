@@ -3,6 +3,7 @@ package com.archivum.ui;
 import com.archivum.model.Documento;
 import com.archivum.model.TipoDocumento;
 import com.archivum.service.DocumentoService;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -47,8 +48,6 @@ public class DocumentoFormDialog {
         stage = new Stage();
         stage.initModality(Modality.APPLICATION_MODAL);
         stage.setTitle(documentoAEditar == null ? "Nuevo documento" : "Editar documento");
-        stage.setMinWidth(550);
-        stage.setMinHeight(650);
 
         VBox root = new VBox(12);
         root.setPadding(new Insets(20));

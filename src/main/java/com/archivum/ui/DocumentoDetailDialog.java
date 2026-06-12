@@ -2,6 +2,7 @@ package com.archivum.ui;
 
 import com.archivum.model.Documento;
 import com.archivum.service.DocumentoService;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -31,10 +32,8 @@ public class DocumentoDetailDialog {
 
     public void mostrar() {
         stage = new Stage();
-        stage.initModality(Modality.WINDOW_MODAL);
+        stage.initModality(Modality.APPLICATION_MODAL);
         stage.setTitle(documento.getTitulo());
-        stage.setMinWidth(550);
-        stage.setMinHeight(500);
 
         VBox root = new VBox(15);
         root.setPadding(new Insets(20));
@@ -195,21 +194,11 @@ public class DocumentoDetailDialog {
     }
 
     private void editarDocumento() {
-        // Crear un nuevo Stage para el formulario, sin cerrar este
-        Stage formStage = new Stage();
-        formStage.initModality(Modality.WINDOW_MODAL);
-        formStage.initOwner(stage); // El detalle es el padre
-
-        // Construimos el formulario manualmente sin usar la clase DocumentoFormDialog
-        // para evitar el problema del showAndWait con ventanas ocultas
         DocumentoFormDialog dialog = new DocumentoFormDialog(service, documento, () -> {
-            if (onDocumentoModificado != null) {
-                onDocumentoModificado.run();
-            }
-            stage.close(); // Cerramos el detalle tras editar
+            if (onDocumentoModificado != null) onDocumentoModificado.run();
+            stage.close();
         });
-
-        dialog.mostrar();
+        dialog.mostrar(); // ACTUALIZADO para usar el nuevo método sin parámetros
     }
 
     private void eliminarDocumento() {
@@ -250,7 +239,4 @@ public class DocumentoDetailDialog {
         if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
         return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
     }
-
-
 }
-

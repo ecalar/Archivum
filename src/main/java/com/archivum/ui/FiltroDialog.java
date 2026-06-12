@@ -1,6 +1,7 @@
 package com.archivum.ui;
 
 import com.archivum.model.TipoDocumento;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -24,8 +25,6 @@ public class FiltroDialog {
         stage = new Stage();
         stage.initModality(Modality.APPLICATION_MODAL);
         stage.setTitle("Filtros de búsqueda");
-        stage.setMinWidth(400);
-        stage.setMinHeight(350);
 
         VBox root = new VBox(15);
         root.setPadding(new Insets(20));
