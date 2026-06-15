@@ -2,18 +2,21 @@ package com.archivum.ui;
 
 import com.archivum.model.Documento;
 import com.archivum.service.DocumentoService;
-import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import org.kordamp.ikonli.javafx.FontIcon;
 
-import java.awt.Desktop;
 import java.io.File;
-import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
@@ -36,19 +39,24 @@ public class DocumentoDetailDialog {
         stage.setTitle(documento.getTitulo());
 
         VBox root = new VBox(15);
-        root.setPadding(new Insets(20));
-        root.setStyle("-fx-background-color: white;");
+        root.setPadding(new Insets(25));
+        root.setStyle("-fx-background-color: #FFFFFF;");
 
-        // Título con emoji según tipo
-        String emoji = obtenerEmoji(documento.getTipo().name());
-        Label tituloLabel = new Label(emoji + " " + documento.getTitulo());
-        tituloLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #4A0E17;");
+        HBox tituloBox = new HBox(12);
+        tituloBox.setAlignment(Pos.CENTER_LEFT);
+        FontIcon tipoIcono = new FontIcon(obtenerIconoClase(documento.getTipo().name()));
+        tipoIcono.setIconSize(24);
+        tipoIcono.setIconColor(Color.web("#CFA144"));
+
+        Label tituloLabel = new Label(documento.getTitulo());
+        tituloLabel.setFont(Font.font("Segoe UI", javafx.scene.text.FontWeight.BOLD, 20));
+        tituloLabel.setStyle("-fx-text-fill: #12261A;");
         tituloLabel.setWrapText(true);
+        tituloBox.getChildren().addAll(tipoIcono, tituloLabel);
 
-        // Grid con datos
         GridPane grid = new GridPane();
-        grid.setHgap(15);
-        grid.setVgap(10);
+        grid.setHgap(20);
+        grid.setVgap(12);
         grid.setPadding(new Insets(10, 0, 10, 0));
 
         agregarFila(grid, 0, "Tipo:", documento.getTipo().getEtiqueta());
@@ -58,73 +66,118 @@ public class DocumentoDetailDialog {
                 ? documento.getFechaSubida().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
                 : "Desconocido");
 
-        // Descripción
         Label descTitulo = new Label("Descripción:");
-        descTitulo.setStyle("-fx-font-weight: bold;");
+        descTitulo.setFont(Font.font("Segoe UI", javafx.scene.text.FontWeight.BOLD, 14));
+        descTitulo.setStyle("-fx-text-fill: #12261A;");
+
         String descripcion = documento.getDescripcion() != null && !documento.getDescripcion().isBlank()
                 ? documento.getDescripcion()
                 : "Sin descripción";
         Label descContenido = new Label(descripcion);
         descContenido.setWrapText(true);
-        descContenido.setStyle("-fx-text-fill: #2D2D2D;");
+        descContenido.setStyle("-fx-text-fill: #4D6B58; -fx-line-spacing: 0.3em;");
 
-        // Archivo
-        HBox archivoBox = new HBox(10);
+        HBox archivoBox = new HBox(15);
         archivoBox.setAlignment(Pos.CENTER_LEFT);
-        archivoBox.setPadding(new Insets(10));
-        archivoBox.setStyle("-fx-background-color: #F5F0E8; -fx-background-radius: 6px;");
+        archivoBox.setPadding(new Insets(15));
+        archivoBox.setStyle("-fx-background-color: #FAFCFB; -fx-background-radius: 8px; -fx-border-color: #D1DED5; -fx-border-radius: 8px;");
 
-        Label archivoIcono = new Label("📄");
-        archivoIcono.setStyle("-fx-font-size: 20px;");
+        FontIcon archivoIcono = new FontIcon("fas-file-pdf");
+        archivoIcono.setIconSize(28);
+        archivoIcono.setIconColor(Color.web("#2A6B44"));
 
-        VBox archivoInfo = new VBox(3);
+        VBox archivoInfo = new VBox(4);
         Label archivoNombre = new Label(documento.getNombreArchivo());
-        archivoNombre.setStyle("-fx-font-weight: bold;");
+        archivoNombre.setStyle("-fx-font-weight: bold; -fx-text-fill: #12261A;");
         Label archivoTamano = new Label(formatearTamanio(documento.getTamanioBytes()));
-        archivoTamano.setStyle("-fx-text-fill: #6C6C6C; -fx-font-size: 11px;");
+        archivoTamano.setStyle("-fx-text-fill: #6B7A70; -fx-font-size: 11px;");
         archivoInfo.getChildren().addAll(archivoNombre, archivoTamano);
 
         archivoBox.getChildren().addAll(archivoIcono, archivoInfo);
 
-        // Botones
-        HBox botonesBox = new HBox(10);
+        HBox botonesBox = new HBox(12);
         botonesBox.setAlignment(Pos.CENTER_RIGHT);
+        botonesBox.setPadding(new Insets(15, 0, 0, 0));
 
-        Button abrirBtn = new Button("📂 Abrir archivo");
-        abrirBtn.setStyle("-fx-background-color: #4A0E17; -fx-text-fill: white;");
+        Button abrirBtn = crearBoton("Abrir visor", "fas-folder-open", "#12261A");
         abrirBtn.setOnAction(e -> abrirArchivo());
 
-        Button editarBtn = new Button("✏️ Editar");
-        editarBtn.setStyle("-fx-background-color: #C9A84C; -fx-text-fill: #4A0E17; -fx-font-weight: bold;");
+        Button descargarBtn = crearBoton("Descargar", "fas-download", "#2A6B44");
+        descargarBtn.setOnAction(e -> descargarDocumento());
+
+        Button editarBtn = crearBoton("Editar", "fas-edit", "#CFA144");
+        editarBtn.setStyle("-fx-background-color: rgba(207, 161, 68, 0.15); -fx-text-fill: #CFA144; -fx-font-weight: bold; -fx-background-radius: 6px; -fx-padding: 8px 16px; -fx-cursor: hand;");
         editarBtn.setOnAction(e -> editarDocumento());
 
-        Button eliminarBtn = new Button("🗑 Eliminar");
-        eliminarBtn.setStyle("-fx-background-color: #C1292E; -fx-text-fill: white;");
+        Button eliminarBtn = crearBoton("Eliminar", "fas-trash-alt", "#8A3636");
         eliminarBtn.setOnAction(e -> eliminarDocumento());
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        Button cerrarBtn = new Button("Cerrar");
+        Button cerrarBtn = crearBoton("Cerrar", "fas-times", "#94A89A");
+        cerrarBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #6B7A70; -fx-border-color: #D1DED5; -fx-border-radius: 6px; -fx-padding: 8px 16px; -fx-cursor: hand;");
         cerrarBtn.setOnAction(e -> stage.close());
 
-        botonesBox.getChildren().addAll(abrirBtn, spacer, editarBtn, eliminarBtn, cerrarBtn);
+        botonesBox.getChildren().addAll(abrirBtn, descargarBtn, spacer, editarBtn, eliminarBtn, cerrarBtn);
 
-        // Añadir todo
-        root.getChildren().addAll(tituloLabel, grid, descTitulo, descContenido, archivoBox, botonesBox);
+        root.getChildren().addAll(tituloBox, new Separator(), grid, descTitulo, descContenido, archivoBox, botonesBox);
 
-        Scene scene = new Scene(root);
+        Scene scene = new Scene(root, 650, -1);
         stage.setScene(scene);
         stage.showAndWait();
     }
 
+    private void descargarDocumento() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Descargar Documento");
+        fileChooser.setInitialFileName(documento.getNombreArchivo());
+
+        File archivoDestino = fileChooser.showSaveDialog(stage);
+
+        if (archivoDestino != null) {
+            try {
+                byte[] bytesOriginales = Files.readAllBytes(Paths.get(documento.getRutaArchivo()));
+                byte[] bytesFinales = bytesOriginales;
+
+                if ("application/pdf".equals(documento.getTipoMime()) || documento.getNombreArchivo().toLowerCase().endsWith(".pdf")) {
+                    com.archivum.service.AjustesService ajustes = new com.archivum.service.AjustesService();
+
+                    if (ajustes.isMarcaAguaActiva()) {
+                        com.archivum.service.MarcaAguaService marcaService = new com.archivum.service.MarcaAguaService();
+                        // Pasamos el texto y el tamaño configurados dinámicamente
+                        bytesFinales = marcaService.aplicarMarcaAguaPDF(
+                                bytesOriginales,
+                                ajustes.getNombreInstitucion(),
+                                ajustes.getMarcaAguaTamano()
+                        );
+                    }
+                }
+
+                Files.write(archivoDestino.toPath(), bytesFinales);
+                mostrarAlerta("Documento descargado con éxito en:\n" + archivoDestino.getAbsolutePath());
+                stage.close();
+
+            } catch (Exception ex) {
+                mostrarAlerta("Error al descargar el documento: " + ex.getMessage());
+            }
+        }
+    }
+
+    private Button crearBoton(String texto, String iconCode, String colorHex) {
+        Button btn = new Button(texto);
+        FontIcon icon = new FontIcon(iconCode);
+        icon.setIconSize(14);
+        icon.setIconColor(Color.WHITE);
+        btn.setGraphic(icon);
+        btn.setGraphicTextGap(8);
+        btn.setStyle("-fx-background-color: " + colorHex + "; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6px; -fx-padding: 8px 16px; -fx-cursor: hand;");
+        return btn;
+    }
+
     private String formatearFecha() {
-        if (documento.getFechaExacta() != null) {
-            return documento.getFechaExacta().format(DateTimeFormatter.ofPattern("dd 'de' MMMM 'de' yyyy"));
-        }
-        if (documento.getAnioAproximado() != null) {
-            return "ca. " + documento.getAnioAproximado();
-        }
+        if (documento.getFechaExacta() != null) return documento.getFechaExacta().format(DateTimeFormatter.ofPattern("dd 'de' MMMM 'de' yyyy"));
+        if (documento.getAnioAproximado() != null) return "ca. " + documento.getAnioAproximado();
         return "Fecha desconocida";
     }
 
@@ -132,65 +185,33 @@ public class DocumentoDetailDialog {
         return (valor != null && !valor.isBlank()) ? valor : "No especificada";
     }
 
-    private String obtenerEmoji(String tipo) {
+    private String obtenerIconoClase(String tipo) {
         return switch (tipo) {
-            case "ACTA" -> "📜";
-            case "CARTA" -> "✉️";
-            case "FACTURA", "PRESUPUESTO" -> "🧾";
-            case "PLANO" -> "📐";
-            case "PARTITURA" -> "🎼";
-            case "FOTOGRAFIA" -> "📷";
-            case "CONTRATO", "ESCRITURA" -> "📝";
-            case "BOLETIN", "CIRCULAR" -> "📰";
-            case "INFORME" -> "📋";
-            default -> "📄";
+            case "ACTA" -> "fas-file-signature";
+            case "CARTA" -> "fas-envelope-open-text";
+            case "FACTURA", "PRESUPUESTO" -> "fas-file-invoice-dollar";
+            case "PLANO" -> "fas-drafting-compass";
+            case "PARTITURA" -> "fas-music";
+            case "FOTOGRAFIA" -> "fas-camera-retro";
+            case "CONTRATO", "ESCRITURA" -> "fas-file-contract";
+            case "BOLETIN", "CIRCULAR" -> "fas-newspaper";
+            case "INFORME" -> "fas-chart-bar";
+            default -> "fas-file-alt";
         };
     }
 
     private void agregarFila(GridPane grid, int fila, String etiqueta, String valor) {
         Label etiquetaLabel = new Label(etiqueta);
-        etiquetaLabel.setStyle("-fx-font-weight: bold;");
+        etiquetaLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #4D6B58;");
         Label valorLabel = new Label(valor);
         valorLabel.setWrapText(true);
+        valorLabel.setStyle("-fx-text-fill: #12261A;");
         grid.add(etiquetaLabel, 0, fila);
         grid.add(valorLabel, 1, fila);
     }
 
     private void abrirArchivo() {
-        try {
-            File archivo = new File(documento.getRutaArchivo());
-            System.out.println("Intentando abrir: " + archivo.getAbsolutePath());
-
-            if (!archivo.exists()) {
-                mostrarAlerta("El archivo no se encuentra en disco.\n\n" +
-                        "Nota: Los documentos de prueba no contienen archivos reales.\n" +
-                        "Cree un documento nuevo con un archivo PDF o imagen real para probar esta función.");
-                return;
-            }
-
-            // Intentar con Desktop primero
-            if (Desktop.isDesktopSupported()) {
-                Desktop desktop = Desktop.getDesktop();
-                if (desktop.isSupported(Desktop.Action.OPEN)) {
-                    desktop.open(archivo);
-                    return;
-                }
-            }
-
-            // Fallback para Linux: usar xdg-open
-            try {
-                new ProcessBuilder("xdg-open", archivo.getAbsolutePath()).start();
-                return;
-            } catch (IOException ignored) {}
-
-            // Fallback: mostrar ruta
-            mostrarAlerta("No se pudo abrir el archivo automáticamente.\n\n" +
-                    "Ruta del archivo:\n" + archivo.getAbsolutePath() +
-                    "\n\nPuede abrirlo manualmente desde su explorador de archivos.");
-
-        } catch (Exception ex) {
-            mostrarAlerta("Error al abrir el archivo: " + ex.getMessage());
-        }
+        new VisorDocumentoDialog(documento).mostrar();
     }
 
     private void editarDocumento() {
@@ -198,7 +219,7 @@ public class DocumentoDetailDialog {
             if (onDocumentoModificado != null) onDocumentoModificado.run();
             stage.close();
         });
-        dialog.mostrar(); // ACTUALIZADO para usar el nuevo método sin parámetros
+        dialog.mostrar();
     }
 
     private void eliminarDocumento() {
@@ -216,9 +237,7 @@ public class DocumentoDetailDialog {
             try {
                 service.eliminarDocumento(documento.getId());
                 stage.close();
-                if (onDocumentoModificado != null) {
-                    onDocumentoModificado.run();
-                }
+                if (onDocumentoModificado != null) onDocumentoModificado.run();
             } catch (Exception ex) {
                 mostrarAlerta("Error al eliminar: " + ex.getMessage());
             }

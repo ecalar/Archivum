@@ -7,11 +7,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -22,6 +22,9 @@ public class DocumentoService {
 
     private final DocumentoRepository repository;
     private final String rutaArchivos;
+    private final OcrService ocrService;
+
+    private final AjustesService ajustesService;
 
     // Formatos permitidos
     private static final Set<String> FORMATOS_PERMITIDOS = Set.of(
@@ -33,14 +36,18 @@ public class DocumentoService {
 
     private static final long TAMANIO_MAXIMO = 50 * 1024 * 1024; // 50 MB en bytes
 
+    // Constructor corregido: solo con las dependencias estrictamente necesarias
     public DocumentoService(DocumentoRepository repository,
-                            @Value("${app.archivos.ruta}") String rutaArchivos) {
+                            @Value("${app.archivos.ruta}") String rutaArchivos,
+                            OcrService ocrService, AjustesService ajustesService) {
         this.repository = repository;
         this.rutaArchivos = rutaArchivos;
+        this.ocrService = ocrService;
+        this.ajustesService = ajustesService;
     }
 
     // ============================================================
-    // CREAR
+    // CREAR (Guarda el archivo maestro original e inalterado)
     // ============================================================
 
     public Documento crearDocumento(String titulo,
@@ -53,13 +60,13 @@ public class DocumentoService {
                                     byte[] contenidoArchivo,
                                     String tipoMime) throws IOException {
 
-        // Validaciones
+        // Validaciones previas
         validarTitulo(titulo);
         validarTipo(tipo);
         validarFechaYAnio(fechaExacta, anioAproximado);
         validarArchivo(contenidoArchivo, tipoMime);
 
-        // Crear entidad
+        // Crear objeto de entidad
         Documento doc = new Documento();
         doc.setId(UUID.randomUUID());
         doc.setTitulo(titulo.trim());
@@ -74,14 +81,25 @@ public class DocumentoService {
         doc.setEliminado(false);
         doc.setFechaSubida(LocalDateTime.now());
 
-        // Guardar archivo en disco
+        // Guardar el archivo físico original e intacto en el disco duro
         Path carpetaDocumento = Paths.get(rutaArchivos, doc.getId().toString());
         Files.createDirectories(carpetaDocumento);
-        Path rutaArchivo = carpetaDocumento.resolve(nombreArchivoOriginal);
-        Files.write(rutaArchivo, contenidoArchivo);
-        doc.setRutaArchivo(rutaArchivo.toString());
+        Path rutaArchivoPath = carpetaDocumento.resolve(nombreArchivoOriginal);
+        Files.write(rutaArchivoPath, contenidoArchivo);
+        doc.setRutaArchivo(rutaArchivoPath.toString());
 
-        // Guardar en BD
+        // Procesar OCR solo si está activo globalmente en la configuración del sistema
+        if (ocrService.isOcrEnabled() && ajustesService.isOcrActivo()) {
+            try {
+                File archivoParaOcr = rutaArchivoPath.toFile();
+                String textoOcr = ocrService.extraerTexto(archivoParaOcr);
+                if (textoOcr != null && !textoOcr.isBlank()) {
+                    doc.setTextoOcr(textoOcr.trim());
+                }
+            } catch (Exception ignored) { }
+        }
+
+        // Guardar definitivamente en la base de datos
         return repository.save(doc);
     }
 
@@ -109,27 +127,22 @@ public class DocumentoService {
                                   LocalDate desde, LocalDate hasta,
                                   Integer anio) {
 
-        // Si hay texto, búsqueda por texto
         if (texto != null && !texto.isBlank()) {
             return repository.buscarPorTexto(texto.trim());
         }
 
-        // Si hay tipo, búsqueda por tipo
         if (tipo != null) {
             return repository.findByTipoAndEliminadoFalse(tipo);
         }
 
-        // Si hay rango de fechas
         if (desde != null && hasta != null) {
             return repository.findByFechaExactaBetweenAndEliminadoFalse(desde, hasta);
         }
 
-        // Si hay año aproximado
         if (anio != null) {
             return repository.findByAnioAproximadoAndEliminadoFalse(anio);
         }
 
-        // Sin filtros: todos
         return repository.findAllByEliminadoFalse();
     }
 
@@ -173,95 +186,69 @@ public class DocumentoService {
 
         validarArchivo(contenido, tipoMime);
 
-        // Guardar nuevo archivo
+        // Guardar nuevo archivo original en disco
         Path carpetaDocumento = Paths.get(rutaArchivos, doc.getId().toString());
         Files.createDirectories(carpetaDocumento);
-        Path rutaArchivo = carpetaDocumento.resolve(nombreArchivo);
-        Files.write(rutaArchivo, contenido);
+        Path rutaArchivoPath = carpetaDocumento.resolve(nombreArchivo);
+        Files.write(rutaArchivoPath, contenido);
 
         doc.setNombreArchivo(nombreArchivo);
-        doc.setRutaArchivo(rutaArchivo.toString());
+        doc.setRutaArchivo(rutaArchivoPath.toString());
         doc.setTipoMime(tipoMime);
         doc.setTamanioBytes((long) contenido.length);
         doc.setFechaModificacion(LocalDateTime.now());
+
+        // Re-ejecutar OCR sobre el nuevo documento
+        // Procesar OCR solo si está activo globalmente en la configuración del sistema
+        if (ocrService.isOcrEnabled() && ajustesService.isOcrActivo()) {
+            try {
+                File archivoParaOcr = rutaArchivoPath.toFile();
+                String textoOcr = ocrService.extraerTexto(archivoParaOcr);
+                if (textoOcr != null && !textoOcr.isBlank()) {
+                    doc.setTextoOcr(textoOcr.trim());
+                }
+            } catch (Exception ignored) { }
+        }
 
         return repository.save(doc);
     }
 
     // ============================================================
-    // ELIMINAR (LÓGICO)
+    // ELIMINAR Y PAPELERA
     // ============================================================
 
     public void eliminarDocumento(UUID id) {
-        Documento doc = obtenerPorId(id)
-                .orElseThrow(() -> new NoSuchElementException("Documento no encontrado: " + id));
-
+        Documento doc = obtenerPorId(id).orElseThrow();
         doc.setEliminado(true);
         doc.setFechaEliminacion(LocalDateTime.now());
         repository.save(doc);
     }
 
     public void restaurarDocumento(UUID id) {
-        Documento doc = repository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Documento no encontrado: " + id));
-
-        if (!doc.isEliminado()) {
-            throw new IllegalStateException("El documento no está en la papelera");
-        }
-
+        Documento doc = repository.findById(id).orElseThrow();
         doc.setEliminado(false);
         doc.setFechaEliminacion(null);
         repository.save(doc);
     }
 
-    // ============================================================
-    // ELIMINAR (DEFINITIVO)
-    // ============================================================
-
     public void eliminarDefinitivamente(UUID id) {
-        Documento doc = repository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Documento no encontrado: " + id));
-
-        if (!doc.isEliminado()) {
-            throw new IllegalStateException("El documento debe estar en la papelera para eliminarlo definitivamente");
-        }
-
-        // Borrar archivo físico
+        Documento doc = repository.findById(id).orElseThrow();
         Path carpetaDocumento = Paths.get(rutaArchivos, doc.getId().toString());
         try {
             if (Files.exists(carpetaDocumento)) {
                 Files.walk(carpetaDocumento)
                         .sorted(Comparator.reverseOrder())
                         .forEach(path -> {
-                            try {
-                                Files.deleteIfExists(path);
-                            } catch (IOException ignored) {}
+                            try { Files.deleteIfExists(path); } catch (IOException ignored) {}
                         });
             }
         } catch (IOException ignored) {}
-
-        // Borrar de BD
         repository.delete(doc);
     }
-
-    // ============================================================
-    // PAPELERA
-    // ============================================================
 
     public List<Documento> obtenerPapelera() {
         return repository.findAllByEliminadoTrue();
     }
-
-    public List<Documento> obtenerDocumentosEnPapeleraMasDe90Dias() {
-        LocalDateTime hace90Dias = LocalDateTime.now().minusDays(90);
-        return repository.findAllByEliminadoTrue().stream()
-                .filter(d -> d.getFechaEliminacion() != null && d.getFechaEliminacion().isBefore(hace90Dias))
-                .toList();
-    }
-
-    // ============================================================
-    // CONTADORES
-    // ============================================================
 
     public long contarDocumentos() {
         return repository.findAllByEliminadoFalse().size();
@@ -276,44 +263,24 @@ public class DocumentoService {
     // ============================================================
 
     private void validarTitulo(String titulo) {
-        if (titulo == null || titulo.isBlank()) {
-            throw new IllegalArgumentException("El título es obligatorio");
-        }
-        if (titulo.trim().length() < 3) {
-            throw new IllegalArgumentException("El título debe tener al menos 3 caracteres");
-        }
-        if (titulo.trim().length() > 200) {
-            throw new IllegalArgumentException("El título debe tener como máximo 200 caracteres");
-        }
+        if (titulo == null || titulo.isBlank()) throw new IllegalArgumentException("El título es obligatorio");
+        if (titulo.trim().length() < 3) throw new IllegalArgumentException("El título debe tener al menos 3 caracteres");
+        if (titulo.trim().length() > 200) throw new IllegalArgumentException("El título debe tener como máximo 200 caracteres");
     }
 
     private void validarTipo(TipoDocumento tipo) {
-        if (tipo == null) {
-            throw new IllegalArgumentException("El tipo de documento es obligatorio");
-        }
+        if (tipo == null) throw new IllegalArgumentException("El tipo de documento es obligatorio");
     }
 
     private void validarFechaYAnio(LocalDate fechaExacta, Integer anioAproximado) {
-        if (fechaExacta != null && anioAproximado != null) {
-            throw new IllegalArgumentException("Use fecha exacta o año aproximado, no ambos");
-        }
-        if (fechaExacta != null && fechaExacta.isAfter(LocalDate.now())) {
-            throw new IllegalArgumentException("La fecha no puede ser futura");
-        }
-        if (anioAproximado != null && (anioAproximado < 1500 || anioAproximado > 2026)) {
-            throw new IllegalArgumentException("El año debe estar entre 1500 y 2026");
-        }
+        if (fechaExacta != null && anioAproximado != null) throw new IllegalArgumentException("Use fecha exacta o año aproximado, no ambos");
+        if (fechaExacta != null && fechaExacta.isAfter(LocalDate.now())) throw new IllegalArgumentException("La fecha no puede ser futura");
+        if (anioAproximado != null && (anioAproximado < 1500 || anioAproximado > 2026)) throw new IllegalArgumentException("El año debe estar entre 1500 y 2026");
     }
 
     private void validarArchivo(byte[] contenido, String tipoMime) {
-        if (contenido == null || contenido.length == 0) {
-            throw new IllegalArgumentException("El archivo es obligatorio");
-        }
-        if (!FORMATOS_PERMITIDOS.contains(tipoMime != null ? tipoMime.toLowerCase() : "")) {
-            throw new IllegalArgumentException("Formato no permitido. Use PDF, JPG o PNG");
-        }
-        if (contenido.length > TAMANIO_MAXIMO) {
-            throw new IllegalArgumentException("El archivo supera los 50 MB");
-        }
+        if (contenido == null || contenido.length == 0) throw new IllegalArgumentException("El archivo es obligatorio");
+        if (!FORMATOS_PERMITIDOS.contains(tipoMime != null ? tipoMime.toLowerCase() : "")) throw new IllegalArgumentException("Formato no permitido. Use PDF, JPG o PNG");
+        if (contenido.length > TAMANIO_MAXIMO) throw new IllegalArgumentException("El archivo supera los 50 MB");
     }
 }

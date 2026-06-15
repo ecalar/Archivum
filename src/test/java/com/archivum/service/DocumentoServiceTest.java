@@ -4,11 +4,13 @@ import com.archivum.model.Documento;
 import com.archivum.model.TipoDocumento;
 import com.archivum.repository.DocumentoRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -31,9 +33,15 @@ class DocumentoServiceTest {
 
     private static final String RUTA_TEST = "./target/test-archivos";
 
+    @Mock
+    private OcrService ocrService;
+    @Mock
+    private MarcaAguaService marcaAguaService;
+
+
     @BeforeEach
     void setUp() {
-        service = new DocumentoService(repository, RUTA_TEST);
+        service = new DocumentoService(repository, "./target/test-archivos", ocrService);
     }
 
     // ============================================================
@@ -671,5 +679,52 @@ class DocumentoServiceTest {
         doc.setEliminado(false);
         doc.setFechaSubida(LocalDateTime.now());
         return doc;
+    }
+
+
+    @Test
+    @DisplayName("Al crear un PDF, debe aplicar marca de agua, extraer OCR y guardar en BD")
+    void crearDocumento_conPdfYOcr_aplicaMarcaYExtraeTexto() throws IOException {
+        // 1. Arrange (Preparar los datos de prueba)
+        String titulo = "Acta de Cabildo";
+        TipoDocumento tipo = TipoDocumento.ACTA;
+        LocalDate fecha = LocalDate.now();
+        String nombreArchivo = "acta.pdf";
+        byte[] contenidoOriginal = "contenido pdf falso".getBytes();
+        byte[] contenidoMarcado = "contenido pdf con marca de agua".getBytes();
+        String tipoMime = "application/pdf";
+        String textoExtraido = "Texto detectado por OCR dentro del acta";
+
+        // 2. Configurar el comportamiento de los Mocks
+        // Cuando el servicio pida aplicar la marca de agua, devolvemos el array marcado
+        when(marcaAguaService.aplicarMarcaAguaPDF(any(byte[].class), anyString()))
+                .thenReturn(contenidoMarcado);
+
+        // Cuando el servicio pregunte si el OCR está activo, decimos que sí
+        when(ocrService.isOcrEnabled()).thenReturn(true);
+
+        // Cuando el servicio mande a extraer el texto, devolvemos nuestro texto falso
+        when(ocrService.extraerTexto(any(File.class))).thenReturn(textoExtraido);
+
+        // Cuando se guarde en base de datos, devolvemos la misma entidad guardada
+        when(repository.save(any(Documento.class))).thenAnswer(i -> i.getArgument(0));
+
+        // 3. Act (Ejecutar el método real)
+        Documento resultado = service.crearDocumento(
+                titulo, tipo, fecha, null, "Descripción de prueba", "Caja fuerte",
+                nombreArchivo, contenidoOriginal, tipoMime
+        );
+
+        // 4. Assert (Verificar los resultados)
+        assertNotNull(resultado);
+        assertEquals(titulo, resultado.getTitulo());
+
+        // ¡Comprobación clave! El documento debe tener el texto del OCR
+        assertEquals(textoExtraido, resultado.getTextoOcr());
+
+        // Verificamos que los servicios externos se llamaron exactamente 1 vez
+        verify(marcaAguaService, times(1)).aplicarMarcaAguaPDF(contenidoOriginal, "ARCHIVO HERMANDAD");
+        verify(ocrService, times(1)).extraerTexto(any(File.class));
+        verify(repository, times(1)).save(any(Documento.class));
     }
 }

@@ -13,27 +13,17 @@ import java.util.UUID;
 @Repository
 public interface DocumentoRepository extends JpaRepository<Documento, UUID> {
 
-    // Buscar no eliminados por texto en título o descripción
+    // AHORA BUSCA TAMBIÉN EN EL OCR AUTOMÁTICAMENTE
     @Query("SELECT d FROM Documento d WHERE d.eliminado = false AND " +
             "(LOWER(d.titulo) LIKE LOWER(CONCAT('%', :texto, '%')) OR " +
-            "LOWER(d.descripcion) LIKE LOWER(CONCAT('%', :texto, '%')))")
+            "LOWER(d.descripcion) LIKE LOWER(CONCAT('%', :texto, '%')) OR " +
+            "LOWER(COALESCE(d.textoOcr, '')) LIKE LOWER(CONCAT('%', :texto, '%')))")
     List<Documento> buscarPorTexto(@Param("texto") String texto);
 
-    // Buscar no eliminados por tipo
     List<Documento> findByTipoAndEliminadoFalse(TipoDocumento tipo);
-
-    // Buscar no eliminados por rango de fechas
     List<Documento> findByFechaExactaBetweenAndEliminadoFalse(LocalDate desde, LocalDate hasta);
-
-    // Buscar no eliminados por año aproximado
     List<Documento> findByAnioAproximadoAndEliminadoFalse(Integer anio);
-
-    // Todos los no eliminados
     List<Documento> findAllByEliminadoFalse();
-
-    // Todos los eliminados (papelera)
     List<Documento> findAllByEliminadoTrue();
-
-    // Últimos documentos subidos (no eliminados)
     List<Documento> findTop10ByEliminadoFalseOrderByFechaSubidaDesc();
 }

@@ -104,4 +104,18 @@ public class Documento {
 
     public LocalDateTime getFechaEliminacion() { return fechaEliminacion; }
     public void setFechaEliminacion(LocalDateTime fechaEliminacion) { this.fechaEliminacion = fechaEliminacion; }
+
+    @Column(name = "texto_ocr", columnDefinition = "TEXT")
+    private String textoOcr;
+
+
+
+    public String getTextoOcr() {
+        return textoOcr;
+    }
+
+    public void setTextoOcr(String textoOcr) {
+        this.textoOcr = textoOcr;
+    }
 }
+

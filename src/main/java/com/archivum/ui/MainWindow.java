@@ -1,6 +1,7 @@
 package com.archivum.ui;
 
 import com.archivum.model.Documento;
+import com.archivum.service.AjustesService;
 import com.archivum.service.BackupService;
 import com.archivum.service.DocumentoService;
 import javafx.application.Application;
@@ -42,11 +43,14 @@ public class MainWindow extends Application {
     private TextField busquedaField;
     private Label estadoLabel, totalDocsLabel, papeleraCountLabel, ultimoBackupLabel;
 
+    private AjustesService ajustesService;
+
     @Override
     public void init() {
         context = new SpringApplicationBuilder(com.archivum.ArchivumApplication.class).run();
         service = context.getBean(DocumentoService.class);
         backupService = context.getBean(BackupService.class);
+        ajustesService = context.getBean(AjustesService.class);
     }
 
     @Override
@@ -185,7 +189,8 @@ public class MainWindow extends Application {
                 btnSidebar("Inicio", "fas-home", true, this::recargarInicio),
                 btnSidebar("Nuevo documento", "fas-file-alt", false, this::nuevoDocumento),
                 btnSidebar("Papelera", "fas-trash-alt", false, this::abrirPapelera),
-                btnSidebar("Copias de seguridad", "fas-save", false, this::hacerBackup)
+                btnSidebar("Copias de seguridad", "fas-save", false, this::hacerBackup),
+                btnSidebar("Ajustes", "fas-cog", false, () -> new AjustesDialog(ajustesService).mostrar())
         );
 
         Region sp = new Region();
