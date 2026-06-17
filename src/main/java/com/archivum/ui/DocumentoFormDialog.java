@@ -233,7 +233,7 @@ public class DocumentoFormDialog {
         // Bloqueamos controles para evitar doble pulsación
         guardarBtn.setDisable(true);
         cancelarBtn.setDisable(true);
-        errorLabel.setText("Procesando documento y extrayendo texto (OCR)... Por favor, espere.");
+        errorLabel.setText("Guardando documento en el sistema...");
         errorLabel.setStyle("-fx-text-fill: #2A6B44; -fx-font-weight: bold;");
         errorLabel.setVisible(true);
 

@@ -1,6 +1,7 @@
 package com.archivum.ui;
 
 import com.archivum.model.Documento;
+import com.archivum.service.AuthService;
 import com.archivum.service.DocumentoService;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -23,12 +24,15 @@ import java.util.Optional;
 public class DocumentoDetailDialog {
 
     private final DocumentoService service;
+    private final AuthService authService; // Campo añadido para la verificación de seguridad
     private final Documento documento;
     private final Runnable onDocumentoModificado;
     private Stage stage;
 
-    public DocumentoDetailDialog(DocumentoService service, Documento documento, Runnable onDocumentoModificado) {
+    // Constructor sincronizado con 4 parámetros
+    public DocumentoDetailDialog(DocumentoService service, AuthService authService, Documento documento, Runnable onDocumentoModificado) {
         this.service = service;
+        this.authService = authService;
         this.documento = documento;
         this.onDocumentoModificado = onDocumentoModificado;
     }
@@ -105,12 +109,15 @@ public class DocumentoDetailDialog {
         Button descargarBtn = crearBoton("Descargar", "fas-download", "#2A6B44");
         descargarBtn.setOnAction(e -> descargarDocumento());
 
+        // Botones con control de roles asignados dinámicamente
         Button editarBtn = crearBoton("Editar", "fas-edit", "#CFA144");
         editarBtn.setStyle("-fx-background-color: rgba(207, 161, 68, 0.15); -fx-text-fill: #CFA144; -fx-font-weight: bold; -fx-background-radius: 6px; -fx-padding: 8px 16px; -fx-cursor: hand;");
         editarBtn.setOnAction(e -> editarDocumento());
+        editarBtn.setVisible(authService.isAdministrador());
 
         Button eliminarBtn = crearBoton("Eliminar", "fas-trash-alt", "#8A3636");
         eliminarBtn.setOnAction(e -> eliminarDocumento());
+        eliminarBtn.setVisible(authService.isAdministrador());
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -145,7 +152,6 @@ public class DocumentoDetailDialog {
 
                     if (ajustes.isMarcaAguaActiva()) {
                         com.archivum.service.MarcaAguaService marcaService = new com.archivum.service.MarcaAguaService();
-                        // Pasamos el texto y el tamaño configurados dinámicamente
                         bytesFinales = marcaService.aplicarMarcaAguaPDF(
                                 bytesOriginales,
                                 ajustes.getNombreInstitucion(),

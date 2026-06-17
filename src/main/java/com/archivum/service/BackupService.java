@@ -1,123 +1,89 @@
 package com.archivum.service;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.nio.file.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Comparator;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 @Service
 public class BackupService {
 
-    private final String rutaArchivos;
-    private final String rutaBackups;
-    private final String rutaData;
+    private final JdbcTemplate jdbcTemplate;
 
-    public BackupService(@Value("${app.archivos.ruta}") String rutaArchivos,
-                         @Value("${app.backup.ruta}") String rutaBackups) {
-        this.rutaArchivos = rutaArchivos;
-        this.rutaBackups = rutaBackups;
-        this.rutaData = "./data";
+    @Value("${app.archivos.ruta:./archivos}")
+    private String rutaArchivos;
+
+    private static final String CARPETA_BACKUPS = "./backups";
+
+    public BackupService(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
     }
 
-    public File crearBackup() throws IOException {
-        Files.createDirectories(Paths.get(rutaBackups));
+    public File crearBackupCompleto() throws Exception {
+        Path dirBackups = Paths.get(CARPETA_BACKUPS);
+        if (!Files.exists(dirBackups)) {
+            Files.createDirectories(dirBackups);
+        }
 
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-        String nombreArchivo = "archivum_backup_" + timestamp + ".zip";
-        Path rutaZip = Paths.get(rutaBackups, nombreArchivo);
+        String nombreArchivoZip = "backup_" + timestamp + ".zip";
+        Path rutaZipFinal = dirBackups.resolve(nombreArchivoZip);
 
-        try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(rutaZip.toFile()))) {
+        File tempSqlFile = File.createTempFile("archivum_dump_", ".sql");
 
-            // Añadir base de datos
-            Path dataPath = Paths.get(rutaData);
-            if (Files.exists(dataPath)) {
-                Files.walk(dataPath)
-                        .filter(Files::isRegularFile)
-                        .forEach(archivo -> {
-                            try {
-                                String entryName = "data/" + dataPath.relativize(archivo).toString();
-                                zos.putNextEntry(new ZipEntry(entryName));
-                                Files.copy(archivo, zos);
-                                zos.closeEntry();
-                            } catch (IOException ignored) {}
-                        });
+        try {
+            // SINTAXIS ESTÁNDAR: Volcado de datos puro y duro.
+            // No necesitamos DROP aquí porque BackupDialog ya ejecuta "DROP ALL OBJECTS" al restaurar.
+            jdbcTemplate.execute("SCRIPT TO '" + tempSqlFile.getAbsolutePath().replace("\\", "/") + "'");
+
+            try (FileOutputStream fos = new FileOutputStream(rutaZipFinal.toFile());
+                 ZipOutputStream zos = new ZipOutputStream(fos)) {
+
+                try (FileInputStream fis = new FileInputStream(tempSqlFile)) {
+                    zos.putNextEntry(new ZipEntry("backup.sql"));
+                    byte[] buffer = new byte[8192];
+                    int length;
+                    while ((length = fis.read(buffer)) != -1) {
+                        zos.write(buffer, 0, length);
+                    }
+                    zos.closeEntry();
+                }
+
+                File origenDocumentos = new File(rutaArchivos);
+                if (origenDocumentos.exists() && origenDocumentos.isDirectory()) {
+                    comprimirDirectorio(origenDocumentos, "archivos/", zos);
+                }
             }
-
-            // Añadir archivos documentales
-            Path archivosPath = Paths.get(rutaArchivos);
-            if (Files.exists(archivosPath)) {
-                Files.walk(archivosPath)
-                        .filter(Files::isRegularFile)
-                        .forEach(archivo -> {
-                            try {
-                                String entryName = "archivos/" + archivosPath.relativize(archivo).toString();
-                                zos.putNextEntry(new ZipEntry(entryName));
-                                Files.copy(archivo, zos);
-                                zos.closeEntry();
-                            } catch (IOException ignored) {}
-                        });
-            }
+        } finally {
+            Files.deleteIfExists(tempSqlFile.toPath());
         }
 
-        return rutaZip.toFile();
+        return rutaZipFinal.toFile();
     }
 
-    public void restaurarBackup(File archivoZip) throws IOException {
-        // Validar que el ZIP tiene pinta de backup de Archivum
-        boolean tieneData = false;
-        boolean tieneArchivos = false;
+    private void comprimirDirectorio(File directorio, String rutaBase, ZipOutputStream zos) throws IOException {
+        File[] listado = directorio.listFiles();
+        if (listado == null) return;
 
-        try (ZipInputStream zis = new ZipInputStream(new FileInputStream(archivoZip))) {
-            ZipEntry entry;
-            while ((entry = zis.getNextEntry()) != null) {
-                if (entry.getName().startsWith("data/")) tieneData = true;
-                if (entry.getName().startsWith("archivos/")) tieneArchivos = true;
-                zis.closeEntry();
-            }
-        }
-
-        if (!tieneData || !tieneArchivos) {
-            throw new IllegalArgumentException("El archivo seleccionado no es un backup válido de Archivum");
-        }
-
-        // Borrar datos actuales
-        Path dataPath = Paths.get(rutaData);
-        if (Files.exists(dataPath)) {
-            Files.walk(dataPath)
-                    .sorted(Comparator.reverseOrder())
-                    .forEach(path -> {
-                        try { Files.deleteIfExists(path); } catch (IOException ignored) {}
-                    });
-        }
-
-        Path archivosPath = Paths.get(rutaArchivos);
-        if (Files.exists(archivosPath)) {
-            Files.walk(archivosPath)
-                    .sorted(Comparator.reverseOrder())
-                    .forEach(path -> {
-                        try { Files.deleteIfExists(path); } catch (IOException ignored) {}
-                    });
-        }
-
-        // Extraer backup
-        try (ZipInputStream zis = new ZipInputStream(new FileInputStream(archivoZip))) {
-            ZipEntry entry;
-            while ((entry = zis.getNextEntry()) != null) {
-                Path destino = Paths.get(".", entry.getName());
-                if (entry.isDirectory()) {
-                    Files.createDirectories(destino);
-                } else {
-                    Files.createDirectories(destino.getParent());
-                    Files.copy(zis, destino, StandardCopyOption.REPLACE_EXISTING);
+        for (File elemento : listado) {
+            if (elemento.isDirectory()) {
+                comprimirDirectorio(elemento, rutaBase + elemento.getName() + "/", zos);
+            } else {
+                try (FileInputStream fis = new FileInputStream(elemento)) {
+                    zos.putNextEntry(new ZipEntry(rutaBase + elemento.getName()));
+                    byte[] buffer = new byte[8192];
+                    int bytesLeidos;
+                    while ((bytesLeidos = fis.read(buffer)) != -1) {
+                        zos.write(buffer, 0, bytesLeidos);
+                    }
+                    zos.closeEntry();
                 }
-                zis.closeEntry();
             }
         }
     }
