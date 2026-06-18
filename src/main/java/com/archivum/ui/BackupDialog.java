@@ -48,7 +48,6 @@ public class BackupDialog {
         stage.initOwner(parentStage);
         stage.initModality(Modality.WINDOW_MODAL);
         stage.setTitle("Gestión de Copias de Seguridad");
-        stage.setResizable(false);
 
         VBox root = new VBox(20);
         root.setPadding(new Insets(30));
@@ -88,6 +87,10 @@ public class BackupDialog {
 
         Scene scene = new Scene(root, 650, 450);
         stage.setScene(scene);
+
+        stage.setMinWidth(650);
+        stage.setMinHeight(450);
+
         stage.show();
     }
 
@@ -162,7 +165,13 @@ public class BackupDialog {
         Alert confirm = new Alert(Alert.AlertType.WARNING,
                 "La restauración reemplazará por completo la base de datos y archivos actuales.\n\n¿Desea continuar?",
                 ButtonType.YES, ButtonType.NO);
+        confirm.initOwner(stage);
         confirm.setHeaderText("¡Atención: Restauración inminente!");
+
+        confirm.getDialogPane().setPrefWidth(450);
+        confirm.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);
+        confirm.getDialogPane().applyCss();
+        confirm.getDialogPane().layout();
 
         confirm.showAndWait().ifPresent(response -> {
             if (response == ButtonType.YES) {
@@ -171,17 +180,14 @@ public class BackupDialog {
                 javafx.concurrent.Task<Void> task = new javafx.concurrent.Task<>() {
                     @Override
                     protected Void call() throws Exception {
-                        // 1. Cerrar Spring y desconectar HikariCP
                         context.close();
                         Thread.sleep(1500);
 
-                        // 2. Destruir DB antigua
                         File oldDb = new File("./data/archivum.mv.db");
                         if (oldDb.exists()) oldDb.delete();
                         File oldTrace = new File("./data/archivum.trace.db");
                         if (oldTrace.exists()) oldTrace.delete();
 
-                        // 3. Extraer contenido
                         File scriptExtraido = null;
                         try (ZipFile zipFile = new ZipFile(archivoZip)) {
                             Enumeration<? extends ZipEntry> entries = zipFile.entries();
@@ -215,16 +221,12 @@ public class BackupDialog {
                             }
                         }
 
-                        // 4. INYECCIÓN SEGURA (CORREGIDA)
                         if (scriptExtraido != null && scriptExtraido.exists()) {
                             Class.forName("org.h2.Driver");
                             try (Connection conn = DriverManager.getConnection("jdbc:h2:file:./data/archivum", "SA", "")) {
                                 try (Statement stmt = conn.createStatement()) {
-                                    // 4.1. Limpiamos cualquier esquema
                                     stmt.execute("DROP ALL OBJECTS");
-                                    // 4.2. Usamos la ruta absoluta del script para que H2 no se pierda
                                     stmt.execute("RUNSCRIPT FROM '" + scriptExtraido.getAbsolutePath().replace("\\", "/") + "'");
-                                    // 4.3. FORZAMOS A H2 A GUARDAR LA RAM EN EL DISCO DURO
                                     stmt.execute("SHUTDOWN COMPACT");
                                 }
                             }
@@ -238,9 +240,16 @@ public class BackupDialog {
 
                 task.setOnSucceeded(e -> {
                     Alert aviso = new Alert(Alert.AlertType.INFORMATION);
+                    aviso.initOwner(stage);
                     aviso.setTitle("Restauración de Copia");
                     aviso.setHeaderText("Proceso completado con éxito");
                     aviso.setContentText("Los scripts de texto y el repositorio físico se han restaurado de forma inmaculada.\n\nAl hacer clic en Aceptar, la aplicación se reiniciará de forma automática.");
+
+                    aviso.getDialogPane().setPrefWidth(450);
+                    aviso.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);
+                    aviso.getDialogPane().applyCss();
+                    aviso.getDialogPane().layout();
+
                     aviso.showAndWait();
 
                     try {
@@ -250,7 +259,6 @@ public class BackupDialog {
 
                         new ProcessBuilder(javaBin, "-cp", classpath, mainClass).start();
 
-                        // CIERRE SEGURO (CORREGIDO): Permite que Linux Mint procese los archivos pendientes
                         Platform.exit();
                         System.exit(0);
                     } catch (Exception ex) {

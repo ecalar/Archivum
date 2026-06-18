@@ -36,9 +36,6 @@ public class LoginWindow {
 
     public void iniciar(Stage stage) {
         stage.setTitle("Archivum - Acceso");
-        stage.setWidth(450);
-        stage.setHeight(620);
-        stage.setResizable(false);
 
         cargarIconoVentana(stage);
 
@@ -115,7 +112,14 @@ public class LoginWindow {
         container.getChildren().addAll(logoBox, formBox, errorLabel, btnLogin);
         root.getChildren().add(container);
 
-        stage.setScene(new Scene(root));
+        Scene scene = new Scene(root, 450, 620);
+        stage.setScene(scene);
+
+        stage.setMinWidth(450);
+        stage.setMaxWidth(450);
+        stage.setMinHeight(620);
+        stage.setMaxHeight(620);
+
         stage.centerOnScreen();
         stage.show();
     }
@@ -125,8 +129,9 @@ public class LoginWindow {
         boolean exito = authService.login(usernameField.getText().trim(), passwordField.getText());
         if (exito) {
             Platform.runLater(() -> {
+                Stage mainStage = new Stage();
                 MainWindow mainWindow = context.getBean(MainWindow.class);
-                mainWindow.iniciar(new Stage());
+                mainWindow.iniciar(mainStage);
                 ((Stage) usernameField.getScene().getWindow()).close();
             });
         } else {

@@ -78,12 +78,28 @@ public class MainWindow extends Application {
         if (css != null) scene.getStylesheets().add(css.toExternalForm());
 
         stage.setScene(scene);
-        stage.setMaximized(true);
+        stage.setResizable(true);
+
+        // TRUCO LINUX: Inyectamos la resolución física del monitor antes de hacer "show"
+        javafx.geometry.Rectangle2D bounds = javafx.stage.Screen.getPrimary().getVisualBounds();
+        stage.setX(bounds.getMinX());
+        stage.setY(bounds.getMinY());
+        stage.setWidth(bounds.getWidth());
+        stage.setHeight(bounds.getHeight());
+
         stage.show();
+
+        // Maximizamos en el ciclo secundario para que los botones de Windows/Linux se acoplen
+        Platform.runLater(() -> {
+            stage.setMaximized(true);
+            stage.toFront();
+        });
+
         stage.setOnCloseRequest(e -> { context.close(); Platform.exit(); });
 
         actualizarDashboard();
         cargarDocumentos();
+
     }
 
     @Override
@@ -193,8 +209,7 @@ public class MainWindow extends Application {
         Button btnBackup = btnSidebar("Copias de seguridad", "fas-save", false, () -> new BackupDialog(backupService, context, stage, this::recargarInicio).mostrar());
         btnBackup.setManaged(authService.isAdministrador());
 
-        Button btnAjustes = btnSidebar("Ajustes", "fas-cog", false, () -> new AjustesDialog(ajustesService, authService).mostrar());
-        btnAjustes.setVisible(authService.isAdministrador());
+        Button btnAjustes = btnSidebar("Ajustes", "fas-cog", false, () -> new AjustesDialog(ajustesService, authService, stage).mostrar());
         btnAjustes.setManaged(authService.isAdministrador());
 
         nav.getChildren().addAll(btnInicio, btnNuevo, btnPapelera, btnBackup, btnAjustes);
@@ -460,21 +475,21 @@ public class MainWindow extends Application {
     }
 
     private void mostrarFiltros() {
-        FiltroDialog f = new FiltroDialog();
+        FiltroDialog f = new FiltroDialog(stage);
         if (f.mostrar())
             documentosList.setAll(service.buscar(null, f.getTipo(), f.getDesde(), f.getHasta(), f.getAnio()));
     }
 
     private void nuevoDocumento() {
-        new DocumentoFormDialog(service, null, () -> Platform.runLater(this::cargarDocumentos)).mostrar();
+        new DocumentoFormDialog(service, stage, null, () -> Platform.runLater(this::cargarDocumentos)).mostrar();
     }
 
     private void verDetalle(Documento d) {
-        new DocumentoDetailDialog(service, authService, d, () -> Platform.runLater(this::cargarDocumentos)).mostrar();
+        new DocumentoDetailDialog(service, authService, stage, d, () -> Platform.runLater(this::cargarDocumentos)).mostrar();
     }
 
     private void abrirPapelera() {
-        new PapeleraDialog(service, () -> Platform.runLater(this::cargarDocumentos)).mostrar();
+        new PapeleraDialog(service, stage, () -> Platform.runLater(this::cargarDocumentos)).mostrar();
     }
 
     private void hacerBackup() {

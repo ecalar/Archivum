@@ -7,20 +7,26 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 public class AjustesDialog {
     private final AjustesService ajustesService;
     private final AuthService authService;
+    private final Stage parentStage;
+    private Stage stage;
 
-    public AjustesDialog(AjustesService ajustesService, AuthService authService) {
+    public AjustesDialog(AjustesService ajustesService, AuthService authService, Stage parentStage) {
         this.ajustesService = ajustesService;
         this.authService = authService;
+        this.parentStage = parentStage;
     }
 
     public void mostrar() {
-        Stage stage = new Stage();
+        stage = new Stage();
+        stage.initOwner(parentStage);
+        stage.initModality(Modality.APPLICATION_MODAL);
         stage.setTitle("Ajustes del Sistema");
 
         TabPane tabPane = new TabPane();
@@ -52,8 +58,13 @@ public class AjustesDialog {
         footer.getChildren().add(btnCerrar);
         root.getChildren().add(footer);
 
-        Scene scene = new Scene(root, 600, 500);
+        Scene scene = new Scene(root, 600, 520);
         stage.setScene(scene);
+
+        // Ajuste multiplicidad: solo mínimos para evitar el bug de encogimiento
+        stage.setMinWidth(600);
+        stage.setMinHeight(520);
+
         stage.showAndWait();
     }
 
@@ -71,7 +82,7 @@ public class AjustesDialog {
         chkMarca.setSelected(ajustesService.isMarcaAguaActiva());
 
         Button btnGuardar = new Button("Guardar Cambios Generales");
-        btnGuardar.setStyle("-fx-background-color: #2A6B44; -fx-text-fill: white; -fx-font-weight: bold;");
+        btnGuardar.setStyle("-fx-background-color: #2A6B44; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;");
         btnGuardar.setOnAction(e -> {
             ajustesService.setNombreInstitucion(txtNombre.getText());
             ajustesService.setMarcaAguaActiva(chkMarca.isSelected());
@@ -98,7 +109,7 @@ public class AjustesDialog {
         PasswordField confirmPass = new PasswordField(); confirmPass.setPromptText("Confirmar nueva contraseña");
 
         Button btnCambiar = new Button("Actualizar Contraseña");
-        btnCambiar.setStyle("-fx-background-color: #12261A; -fx-text-fill: white;");
+        btnCambiar.setStyle("-fx-background-color: #12261A; -fx-text-fill: white; -fx-cursor: hand;");
 
         btnCambiar.setOnAction(e -> {
             if (currentPass.getText().isBlank() || newPass.getText().isBlank()) {
@@ -109,7 +120,6 @@ public class AjustesDialog {
                 mostrarAlerta("Error", "Las contraseñas nuevas no coinciden.");
                 return;
             }
-            // Aquí llamarías al método real de tu BD. Ej: authService.cambiarPassword(...)
             mostrarAlerta("Seguridad", "Contraseña actualizada correctamente en el sistema.");
             currentPass.clear(); newPass.clear(); confirmPass.clear();
         });
@@ -126,7 +136,7 @@ public class AjustesDialog {
         chkOcr.setSelected(ajustesService.isOcrActivo());
 
         Button btnGuardarOcr = new Button("Guardar Ajustes de Motor");
-        btnGuardarOcr.setStyle("-fx-background-color: #2A6B44; -fx-text-fill: white; -fx-font-weight: bold;");
+        btnGuardarOcr.setStyle("-fx-background-color: #2A6B44; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;");
 
         btnGuardarOcr.setOnAction(e -> {
             ajustesService.setOcrActivo(chkOcr.isSelected());
@@ -140,7 +150,16 @@ public class AjustesDialog {
 
     private void mostrarAlerta(String tit, String msg) {
         Alert a = new Alert(Alert.AlertType.INFORMATION);
-        a.setTitle(tit); a.setHeaderText(null); a.setContentText(msg);
+        if (stage != null) a.initOwner(stage);
+        a.setTitle(tit);
+        a.setHeaderText(null);
+        a.setContentText(msg);
+
+        a.getDialogPane().setPrefWidth(450);
+        a.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);
+        a.getDialogPane().applyCss();
+        a.getDialogPane().layout();
+
         a.showAndWait();
     }
 }

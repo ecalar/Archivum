@@ -25,6 +25,7 @@ import java.time.LocalDate;
 public class DocumentoFormDialog {
 
     private final DocumentoService service;
+    private final Stage parentStage;
     private final Runnable onDocumentoModificado;
     private final Documento documentoAEditar;
     private Stage stage;
@@ -44,14 +45,16 @@ public class DocumentoFormDialog {
     private Button guardarBtn;
     private Button cancelarBtn;
 
-    public DocumentoFormDialog(DocumentoService service, Documento docAEditar, Runnable onDocumentoModificado) {
+    public DocumentoFormDialog(DocumentoService service, Stage parentStage, Documento docAEditar, Runnable onDocumentoModificado) {
         this.service = service;
+        this.parentStage = parentStage;
         this.documentoAEditar = docAEditar;
         this.onDocumentoModificado = onDocumentoModificado;
     }
 
     public void mostrar() {
         stage = new Stage();
+        stage.initOwner(parentStage);
         stage.initModality(Modality.APPLICATION_MODAL);
         stage.setTitle(documentoAEditar == null ? "Nuevo documento" : "Editar documento");
 
@@ -170,8 +173,12 @@ public class DocumentoFormDialog {
             }
         }
 
-        Scene scene = new Scene(root, 500, -1);
+        Scene scene = new Scene(root, 550, 680);
         stage.setScene(scene);
+
+        stage.setMinWidth(550);
+        stage.setMinHeight(680);
+
         stage.showAndWait();
     }
 
@@ -230,7 +237,6 @@ public class DocumentoFormDialog {
             }
         }
 
-        // Bloqueamos controles para evitar doble pulsación
         guardarBtn.setDisable(true);
         cancelarBtn.setDisable(true);
         errorLabel.setText("Guardando documento en el sistema...");
@@ -239,7 +245,6 @@ public class DocumentoFormDialog {
 
         Integer finalAnio = anio;
 
-        // Creamos una tarea en un hilo de fondo (Background Thread)
         Task<Documento> task = new Task<>() {
             @Override
             protected Documento call() throws Exception {
@@ -260,13 +265,11 @@ public class DocumentoFormDialog {
             }
         };
 
-        // Qué pasa si todo va bien
         task.setOnSucceeded(ev -> Platform.runLater(() -> {
             if (onDocumentoModificado != null) onDocumentoModificado.run();
             stage.close();
         }));
 
-        // Qué pasa si ocurre un error
         task.setOnFailed(ev -> Platform.runLater(() -> {
             guardarBtn.setDisable(false);
             cancelarBtn.setDisable(false);
@@ -276,7 +279,6 @@ public class DocumentoFormDialog {
             errorLabel.setVisible(true);
         }));
 
-        // Arrancamos el hilo secundario
         new Thread(task).start();
     }
 

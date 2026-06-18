@@ -20,15 +20,19 @@ import java.util.List;
 public class PapeleraDialog {
 
     private final DocumentoService service;
+    private final Stage parentStage;
     private final Runnable onDocumentoModificado;
+    private Stage stage;
 
-    public PapeleraDialog(DocumentoService service, Runnable onDocumentoModificado) {
+    public PapeleraDialog(DocumentoService service, Stage parentStage, Runnable onDocumentoModificado) {
         this.service = service;
+        this.parentStage = parentStage;
         this.onDocumentoModificado = onDocumentoModificado;
     }
 
     public void mostrar() {
-        Stage stage = new Stage();
+        stage = new Stage();
+        stage.initOwner(parentStage);
         stage.initModality(Modality.APPLICATION_MODAL);
         stage.setTitle("Papelera de reciclaje");
 
@@ -36,12 +40,11 @@ public class PapeleraDialog {
         root.setPadding(new Insets(20));
         root.setStyle("-fx-background-color: #FFFFFF;");
 
-        // Cabecera
         HBox headerBox = new HBox(10);
         headerBox.setAlignment(Pos.CENTER_LEFT);
         FontIcon trashIcon = new FontIcon("fas-trash-alt");
         trashIcon.setIconSize(24);
-        trashIcon.setIconColor(Color.web("#8A3636")); // Rojo borgoña
+        trashIcon.setIconColor(Color.web("#8A3636"));
 
         VBox headerText = new VBox(2);
         Label titulo = new Label("Papelera de reciclaje");
@@ -53,7 +56,6 @@ public class PapeleraDialog {
 
         headerBox.getChildren().addAll(trashIcon, headerText);
 
-        // Tabla
         TableView<Documento> tabla = new TableView<>();
         tabla.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         tabla.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
@@ -62,7 +64,6 @@ public class PapeleraDialog {
 
         TableColumn<Documento, String> colTitulo = new TableColumn<>("Título");
         colTitulo.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().getTitulo()));
-        colTitulo.setPrefWidth(300);
 
         TableColumn<Documento, String> colTipo = new TableColumn<>("Tipo");
         colTipo.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(
@@ -70,22 +71,18 @@ public class PapeleraDialog {
 
         TableColumn<Documento, LocalDateTime> colFecha = new TableColumn<>("Eliminado el");
         colFecha.setCellValueFactory(data -> new javafx.beans.property.SimpleObjectProperty<>(data.getValue().getFechaEliminacion()));
-        colFecha.setCellFactory(col -> new TableCell<Documento, LocalDateTime>() {
+        colFecha.setCellFactory(col -> new TableCell<>() {
             @Override
             protected void updateItem(LocalDateTime fecha, boolean empty) {
                 super.updateItem(fecha, empty);
-                if (empty || fecha == null) {
-                    setText(null);
-                } else {
-                    setText(fecha.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")));
-                }
+                if (empty || fecha == null) setText(null);
+                else setText(fecha.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")));
             }
         });
 
         tabla.getColumns().addAll(colTitulo, colTipo, colFecha);
         cargarPapelera(tabla);
 
-        // Botones
         HBox botones = new HBox(12);
         botones.setAlignment(Pos.CENTER_RIGHT);
         botones.setPadding(new Insets(10, 0, 0, 0));
@@ -95,7 +92,14 @@ public class PapeleraDialog {
             var sel = tabla.getSelectionModel().getSelectedItems();
             if (sel.isEmpty()) { alerta("Seleccione al menos un documento."); return; }
             Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "¿Restaurar " + sel.size() + " documento(s)?");
+            confirm.initOwner(stage);
             confirm.setTitle("Restaurar");
+
+            confirm.getDialogPane().setPrefWidth(450);
+            confirm.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);
+            confirm.getDialogPane().applyCss();
+            confirm.getDialogPane().layout();
+
             if (confirm.showAndWait().orElse(null) == ButtonType.OK) {
                 for (Documento d : sel) service.restaurarDocumento(d.getId());
                 cargarPapelera(tabla);
@@ -108,11 +112,25 @@ public class PapeleraDialog {
             var sel = tabla.getSelectionModel().getSelectedItems();
             if (sel.isEmpty()) { alerta("Seleccione al menos un documento."); return; }
             Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "¿Eliminar " + sel.size() + " documento(s) para siempre?");
+            confirm.initOwner(stage);
             confirm.setTitle("Eliminar");
+
+            confirm.getDialogPane().setPrefWidth(450);
+            confirm.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);
+            confirm.getDialogPane().applyCss();
+            confirm.getDialogPane().layout();
+
             if (confirm.showAndWait().orElse(null) == ButtonType.OK) {
                 TextInputDialog input = new TextInputDialog();
+                input.initOwner(stage);
                 input.setTitle("Confirmación de seguridad");
                 input.setHeaderText("Esta acción es irreversible.\nEscriba ELIMINAR para confirmar.");
+
+                input.getDialogPane().setPrefWidth(450);
+                input.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);
+                input.getDialogPane().applyCss();
+                input.getDialogPane().layout();
+
                 if (input.showAndWait().map(t -> "ELIMINAR".equals(t.trim())).orElse(false)) {
                     for (Documento d : sel) service.eliminarDefinitivamente(d.getId());
                     cargarPapelera(tabla);
@@ -121,15 +139,29 @@ public class PapeleraDialog {
             }
         });
 
-        Button btnVaciar = crearBoton("Vaciar papelera", "fas-dumpster", "#611818"); // Rojo muy oscuro
+        Button btnVaciar = crearBoton("Vaciar papelera", "fas-dumpster", "#611818");
         btnVaciar.setOnAction(e -> {
             List<Documento> todos = service.obtenerPapelera();
             if (todos.isEmpty()) { alerta("La papelera ya está vacía."); return; }
             Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "¿Eliminar TODOS los documentos permanentemente?");
+            confirm.initOwner(stage);
+
+            confirm.getDialogPane().setPrefWidth(450);
+            confirm.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);
+            confirm.getDialogPane().applyCss();
+            confirm.getDialogPane().layout();
+
             if (confirm.showAndWait().orElse(null) == ButtonType.OK) {
                 TextInputDialog input = new TextInputDialog();
+                input.initOwner(stage);
                 input.setTitle("Confirmación extrema");
                 input.setHeaderText("¡Atención! Perderá todos los documentos.\nEscriba VACIAR para confirmar.");
+
+                input.getDialogPane().setPrefWidth(450);
+                input.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);
+                input.getDialogPane().applyCss();
+                input.getDialogPane().layout();
+
                 if (input.showAndWait().map(t -> "VACIAR".equals(t.trim())).orElse(false)) {
                     for (Documento d : todos) service.eliminarDefinitivamente(d.getId());
                     cargarPapelera(tabla);
@@ -146,10 +178,14 @@ public class PapeleraDialog {
         btnCerrar.setOnAction(e -> stage.close());
 
         botones.getChildren().addAll(btnRestaurar, btnEliminar, spacer, btnVaciar, btnCerrar);
-
         root.getChildren().addAll(headerBox, new Separator(), tabla, botones);
 
-        stage.setScene(new Scene(root, 800, 500));
+        Scene scene = new Scene(root, 800, 550);
+        stage.setScene(scene);
+
+        stage.setMinWidth(800);
+        stage.setMinHeight(550);
+
         stage.showAndWait();
     }
 
@@ -170,7 +206,14 @@ public class PapeleraDialog {
 
     private void alerta(String msg) {
         Alert alert = new Alert(Alert.AlertType.WARNING, msg);
+        alert.initOwner(stage);
         alert.setHeaderText(null);
+
+        alert.getDialogPane().setPrefWidth(450);
+        alert.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);
+        alert.getDialogPane().applyCss();
+        alert.getDialogPane().layout();
+
         alert.showAndWait();
     }
 }

@@ -24,21 +24,23 @@ import java.util.Optional;
 public class DocumentoDetailDialog {
 
     private final DocumentoService service;
-    private final AuthService authService; // Campo añadido para la verificación de seguridad
+    private final AuthService authService;
+    private final Stage parentStage;
     private final Documento documento;
     private final Runnable onDocumentoModificado;
     private Stage stage;
 
-    // Constructor sincronizado con 4 parámetros
-    public DocumentoDetailDialog(DocumentoService service, AuthService authService, Documento documento, Runnable onDocumentoModificado) {
+    public DocumentoDetailDialog(DocumentoService service, AuthService authService, Stage parentStage, Documento documento, Runnable onDocumentoModificado) {
         this.service = service;
         this.authService = authService;
+        this.parentStage = parentStage;
         this.documento = documento;
         this.onDocumentoModificado = onDocumentoModificado;
     }
 
     public void mostrar() {
         stage = new Stage();
+        stage.initOwner(parentStage);
         stage.initModality(Modality.APPLICATION_MODAL);
         stage.setTitle(documento.getTitulo());
 
@@ -75,8 +77,7 @@ public class DocumentoDetailDialog {
         descTitulo.setStyle("-fx-text-fill: #12261A;");
 
         String descripcion = documento.getDescripcion() != null && !documento.getDescripcion().isBlank()
-                ? documento.getDescripcion()
-                : "Sin descripción";
+                ? documento.getDescripcion() : "Sin descripción";
         Label descContenido = new Label(descripcion);
         descContenido.setWrapText(true);
         descContenido.setStyle("-fx-text-fill: #4D6B58; -fx-line-spacing: 0.3em;");
@@ -109,7 +110,6 @@ public class DocumentoDetailDialog {
         Button descargarBtn = crearBoton("Descargar", "fas-download", "#2A6B44");
         descargarBtn.setOnAction(e -> descargarDocumento());
 
-        // Botones con control de roles asignados dinámicamente
         Button editarBtn = crearBoton("Editar", "fas-edit", "#CFA144");
         editarBtn.setStyle("-fx-background-color: rgba(207, 161, 68, 0.15); -fx-text-fill: #CFA144; -fx-font-weight: bold; -fx-background-radius: 6px; -fx-padding: 8px 16px; -fx-cursor: hand;");
         editarBtn.setOnAction(e -> editarDocumento());
@@ -130,8 +130,12 @@ public class DocumentoDetailDialog {
 
         root.getChildren().addAll(tituloBox, new Separator(), grid, descTitulo, descContenido, archivoBox, botonesBox);
 
-        Scene scene = new Scene(root, 650, -1);
+        Scene scene = new Scene(root, 650, 600);
         stage.setScene(scene);
+
+        stage.setMinWidth(650);
+        stage.setMinHeight(600);
+
         stage.showAndWait();
     }
 
@@ -149,14 +153,9 @@ public class DocumentoDetailDialog {
 
                 if ("application/pdf".equals(documento.getTipoMime()) || documento.getNombreArchivo().toLowerCase().endsWith(".pdf")) {
                     com.archivum.service.AjustesService ajustes = new com.archivum.service.AjustesService();
-
                     if (ajustes.isMarcaAguaActiva()) {
                         com.archivum.service.MarcaAguaService marcaService = new com.archivum.service.MarcaAguaService();
-                        bytesFinales = marcaService.aplicarMarcaAguaPDF(
-                                bytesOriginales,
-                                ajustes.getNombreInstitucion(),
-                                ajustes.getMarcaAguaTamano()
-                        );
+                        bytesFinales = marcaService.aplicarMarcaAguaPDF(bytesOriginales, ajustes.getNombreInstitucion(), ajustes.getMarcaAguaTamano());
                     }
                 }
 
@@ -217,11 +216,11 @@ public class DocumentoDetailDialog {
     }
 
     private void abrirArchivo() {
-        new VisorDocumentoDialog(documento).mostrar();
+        new VisorDocumentoDialog(documento, stage).mostrar();
     }
 
     private void editarDocumento() {
-        DocumentoFormDialog dialog = new DocumentoFormDialog(service, documento, () -> {
+        DocumentoFormDialog dialog = new DocumentoFormDialog(service, stage, documento, () -> {
             if (onDocumentoModificado != null) onDocumentoModificado.run();
             stage.close();
         });
@@ -230,6 +229,7 @@ public class DocumentoDetailDialog {
 
     private void eliminarDocumento() {
         Alert confirmacion = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmacion.initOwner(stage);
         confirmacion.setTitle("Mover a la papelera");
         confirmacion.setHeaderText("¿Mover \"" + documento.getTitulo() + "\" a la papelera?");
         confirmacion.setContentText("Podrá recuperarlo después desde la papelera.");
@@ -237,6 +237,11 @@ public class DocumentoDetailDialog {
         ButtonType btnMover = new ButtonType("Mover a papelera");
         ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
         confirmacion.getButtonTypes().setAll(btnMover, btnCancelar);
+
+        confirmacion.getDialogPane().setPrefWidth(450);
+        confirmacion.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);
+        confirmacion.getDialogPane().applyCss();
+        confirmacion.getDialogPane().layout();
 
         Optional<ButtonType> resultado = confirmacion.showAndWait();
         if (resultado.isPresent() && resultado.get() == btnMover) {
@@ -252,9 +257,16 @@ public class DocumentoDetailDialog {
 
     private void mostrarAlerta(String mensaje) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.initOwner(stage);
         alert.setTitle("Archivum");
         alert.setHeaderText(null);
         alert.setContentText(mensaje);
+
+        alert.getDialogPane().setPrefWidth(450);
+        alert.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);
+        alert.getDialogPane().applyCss();
+        alert.getDialogPane().layout();
+
         alert.showAndWait();
     }
 
