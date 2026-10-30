@@ -33,6 +33,7 @@ public class AjustesService {
                 properties.setProperty("ocr.activo", "true");
                 properties.setProperty("ocr.idioma", "spa");
                 properties.setProperty("backup.ruta", "./backups");
+                properties.setProperty("institucion.logo.ruta", "");
                 guardarAjustes();
             }
         } catch (IOException e) {
@@ -66,4 +67,7 @@ public class AjustesService {
 
     public String getRutaBackup() { return properties.getProperty("backup.ruta", "./backups"); }
     public void setRutaBackup(String v) { properties.setProperty("backup.ruta", v); }
+
+    public String getLogoRuta() { return properties.getProperty("institucion.logo.ruta", ""); }
+    public void setLogoRuta(String v) { properties.setProperty("institucion.logo.ruta", v == null ? "" : v); }
 }
