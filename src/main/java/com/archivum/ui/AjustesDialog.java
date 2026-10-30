@@ -2,6 +2,8 @@ package com.archivum.ui;
 
 import com.archivum.service.AjustesService;
 import com.archivum.service.AuthService;
+import com.archivum.service.DocumentoService;
+import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -19,12 +21,17 @@ public class AjustesDialog {
 
     private final AjustesService ajustesService;
     private final AuthService authService;
+    private final DocumentoService documentoService;
     private final Stage parentStage;
     private Stage stage;
 
-    public AjustesDialog(AjustesService ajustesService, AuthService authService, Stage parentStage) {
+    public AjustesDialog(AjustesService ajustesService,
+                         AuthService authService,
+                         DocumentoService documentoService,
+                         Stage parentStage) {
         this.ajustesService = ajustesService;
         this.authService = authService;
+        this.documentoService = documentoService;
         this.parentStage = parentStage;
     }
 
@@ -39,19 +46,16 @@ public class AjustesDialog {
 
         boolean esAdmin = authService.isAdministrador();
 
-        // Pestaña General — solo admin
         if (esAdmin) {
             Tab tabGeneral = new Tab("General", crearSeccionGeneral());
             tabGeneral.setGraphic(new FontIcon("fas-cog"));
             tabPane.getTabs().add(tabGeneral);
         }
 
-        // Pestaña Seguridad — todos
         Tab tabSeguridad = new Tab("Seguridad", crearSeccionSeguridad());
         tabSeguridad.setGraphic(new FontIcon("fas-shield-alt"));
         tabPane.getTabs().add(tabSeguridad);
 
-        // Pestaña OCR — solo admin
         if (esAdmin) {
             Tab tabOcr = new Tab("Motor OCR", crearSeccionOcr());
             tabOcr.setGraphic(new FontIcon("fas-eye"));
@@ -89,14 +93,12 @@ public class AjustesDialog {
         grid.setVgap(15);
         grid.setHgap(15);
 
-        // 1) Campos de texto y controles PRIMERO
         TextField txtNombre = new TextField(ajustesService.getNombreInstitucion());
         txtNombre.setPrefWidth(300);
 
         CheckBox chkMarca = new CheckBox("Activar marca de agua en exportaciones");
         chkMarca.setSelected(ajustesService.isMarcaAguaActiva());
 
-        // 2) Selector de logo (también ANTES del btnGuardar)
         TextField txtLogo = new TextField(ajustesService.getLogoRuta());
         txtLogo.setEditable(false);
         txtLogo.setPrefWidth(240);
@@ -118,7 +120,6 @@ public class AjustesDialog {
         HBox logoRow = new HBox(8, txtLogo, btnElegirLogo, btnQuitarLogo);
         logoRow.setAlignment(Pos.CENTER_LEFT);
 
-        // 3) Botón guardar DESPUÉS de que existan todos los controles que va a leer
         Button btnGuardar = new Button("Guardar Cambios Generales");
         btnGuardar.setStyle("-fx-background-color: #2A6B44; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;");
         btnGuardar.setOnAction(e -> {
@@ -129,7 +130,6 @@ public class AjustesDialog {
             mostrarAlerta("Éxito", "Configuración general actualizada correctamente.");
         });
 
-        // 4) Layout del grid
         grid.add(new Label("Nombre Institución:"), 0, 0);
         grid.add(txtNombre, 1, 0);
         grid.add(new Label("Protección:"), 0, 1);
@@ -211,11 +211,92 @@ public class AjustesDialog {
             mostrarAlerta("Éxito", "Configuración del motor OCR actualizada.");
         });
 
+        // --- BLOQUE DE RE-INDEXACIÓN ---
+        Label lblReindex = new Label("Mantenimiento de índice OCR");
+        lblReindex.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 15 0 0 0;");
+
+        Label lblReindexDesc = new Label(
+                "Procesa con OCR todos los documentos antiguos que aún no tienen texto indexado. " +
+                        "Puede tardar varios minutos si hay muchos archivos.");
+        lblReindexDesc.setWrapText(true);
+        lblReindexDesc.setStyle("-fx-text-fill: #6B7A70; -fx-font-size: 12px;");
+
+        ProgressBar progressBar = new ProgressBar(0);
+        progressBar.setPrefWidth(Double.MAX_VALUE);
+        progressBar.setVisible(false);
+        progressBar.setManaged(false);
+
+        Label lblProgreso = new Label();
+        lblProgreso.setStyle("-fx-text-fill: #2A6B44; -fx-font-size: 12px;");
+        lblProgreso.setVisible(false);
+        lblProgreso.setManaged(false);
+
+        Button btnReindexar = new Button("Re-indexar documentos sin OCR");
+        btnReindexar.setGraphic(crearIcono("fas-sync-alt", "white", 14));
+        btnReindexar.setStyle("-fx-background-color: #CFA144; -fx-text-fill: #12261A; -fx-font-weight: bold; -fx-cursor: hand;");
+
+        btnReindexar.setOnAction(e -> {
+            btnReindexar.setDisable(true);
+            btnReindexar.setText("Procesando...");
+            progressBar.setVisible(true);
+            progressBar.setManaged(true);
+            progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+            lblProgreso.setVisible(true);
+            lblProgreso.setManaged(true);
+            lblProgreso.setText("Preparando...");
+
+            Task<Integer> task = new Task<>() {
+                @Override
+                protected Integer call() {
+                    return documentoService.reindexarOcrFaltante(hechos ->
+                            javafx.application.Platform.runLater(() ->
+                                    lblProgreso.setText("Procesados: " + hechos)));
+                }
+            };
+
+            task.setOnSucceeded(ev -> {
+                int total = task.getValue();
+                progressBar.setVisible(false);
+                progressBar.setManaged(false);
+                btnReindexar.setDisable(false);
+                btnReindexar.setText("Re-indexar documentos sin OCR");
+
+                if (total == 0) {
+                    lblProgreso.setText("Todos los documentos ya tenían texto OCR. No hay nada que procesar.");
+                    lblProgreso.setStyle("-fx-text-fill: #6B7A70; -fx-font-size: 12px;");
+                } else {
+                    lblProgreso.setText("Re-indexación completada. Documentos procesados: " + total);
+                    lblProgreso.setStyle("-fx-text-fill: #2A6B44; -fx-font-size: 12px;");
+                    mostrarAlerta("OCR", "Re-indexación completada.\n\nDocumentos procesados: " + total);
+                }
+            });
+
+            task.setOnFailed(ev -> {
+                progressBar.setVisible(false);
+                progressBar.setManaged(false);
+                btnReindexar.setDisable(false);
+                btnReindexar.setText("Re-indexar documentos sin OCR");
+                lblProgreso.setText("Error durante la re-indexación. Revise la consola.");
+                lblProgreso.setStyle("-fx-text-fill: #B91C1C; -fx-font-size: 12px;");
+            });
+
+            Thread t = new Thread(task);
+            t.setDaemon(true);
+            t.start();
+        });
+
         box.getChildren().addAll(
                 new Label("Reconocimiento Óptico (Puede consumir CPU)"),
                 new Separator(),
                 chkOcr,
-                btnGuardarOcr);
+                btnGuardarOcr,
+                new Separator(),
+                lblReindex,
+                lblReindexDesc,
+                progressBar,
+                lblProgreso,
+                btnReindexar);
+
         return box;
     }
 
