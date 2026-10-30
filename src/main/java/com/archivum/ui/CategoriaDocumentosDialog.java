@@ -99,7 +99,46 @@ public class CategoriaDocumentosDialog {
 
         TableColumn<Documento, String> cTit = new TableColumn<>("Título");
         cTit.setCellValueFactory(new PropertyValueFactory<>("titulo"));
-        cTit.setPrefWidth(300);
+        cTit.setPrefWidth(320);
+        cTit.setCellFactory(col -> new TableCell<>() {
+            private final org.kordamp.ikonli.javafx.FontIcon icon = new org.kordamp.ikonli.javafx.FontIcon("fas-file-alt");
+
+            {
+                icon.setIconSize(11);
+                icon.setIconColor(javafx.scene.paint.Color.web("#CFA144"));
+            }
+
+            @Override
+            protected void updateItem(String titulo, boolean empty) {
+                super.updateItem(titulo, empty);
+                if (empty || titulo == null) {
+                    setText(null);
+                    setGraphic(null);
+                    setTooltip(null);
+                    return;
+                }
+                Documento d = getTableView().getItems().get(getIndex());
+                setText(titulo);
+
+                String busqueda = busquedaField != null ? busquedaField.getText() : null;
+                String snippet = SnippetHelper.snippetOcr(d, busqueda);
+
+                if (snippet != null) {
+                    setGraphic(icon);
+                    Tooltip tip = new Tooltip("Coincidencia en el contenido:\n\n" + snippet);
+                    tip.setWrapText(true);
+                    tip.setMaxWidth(420);
+                    setTooltip(tip);
+                } else if (SnippetHelper.tieneOcr(d)) {
+                    setGraphic(null);
+                    Tooltip tip = new Tooltip("Documento con texto OCR indexado.");
+                    setTooltip(tip);
+                } else {
+                    setGraphic(null);
+                    setTooltip(null);
+                }
+            }
+        });
 
         TableColumn<Documento, LocalDate> cFec = new TableColumn<>("Fecha");
         cFec.setCellValueFactory(new PropertyValueFactory<>("fechaExacta"));
