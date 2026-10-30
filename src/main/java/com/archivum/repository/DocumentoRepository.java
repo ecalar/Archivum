@@ -13,7 +13,28 @@ import java.util.UUID;
 @Repository
 public interface DocumentoRepository extends JpaRepository<Documento, UUID> {
 
-    // AHORA BUSCA TAMBIÉN EN EL OCR AUTOMÁTICAMENTE
+    /**
+     * Búsqueda combinada: todos los parámetros son opcionales (null = sin filtro).
+     * El texto se busca en título, descripción y contenido OCR.
+     */
+    @Query("SELECT d FROM Documento d WHERE d.eliminado = false " +
+            "AND (:texto IS NULL OR " +
+            "     LOWER(d.titulo) LIKE LOWER(CONCAT('%', :texto, '%')) " +
+            "  OR LOWER(COALESCE(d.descripcion, '')) LIKE LOWER(CONCAT('%', :texto, '%')) " +
+            "  OR LOWER(COALESCE(d.textoOcr, '')) LIKE LOWER(CONCAT('%', :texto, '%'))) " +
+            "AND (:tipo IS NULL OR d.tipo = :tipo) " +
+            "AND (:desde IS NULL OR d.fechaExacta >= :desde) " +
+            "AND (:hasta IS NULL OR d.fechaExacta <= :hasta) " +
+            "AND (:anio IS NULL OR d.anioAproximado = :anio) " +
+            "ORDER BY d.fechaSubida DESC")
+    List<Documento> buscarCombinado(
+            @Param("texto") String texto,
+            @Param("tipo") TipoDocumento tipo,
+            @Param("desde") LocalDate desde,
+            @Param("hasta") LocalDate hasta,
+            @Param("anio") Integer anio);
+
+    // --- Métodos antiguos, se mantienen por compatibilidad ---
     @Query("SELECT d FROM Documento d WHERE d.eliminado = false AND " +
             "(LOWER(d.titulo) LIKE LOWER(CONCAT('%', :texto, '%')) OR " +
             "LOWER(d.descripcion) LIKE LOWER(CONCAT('%', :texto, '%')) OR " +

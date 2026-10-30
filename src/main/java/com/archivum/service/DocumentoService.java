@@ -154,12 +154,10 @@ public class DocumentoService {
     public List<Documento> obtenerTodos() { return repository.findAllByEliminadoFalse(); }
     public List<Documento> obtenerTodosOrdenadosPorFecha() { return repository.findTop10ByEliminadoFalseOrderByFechaSubidaDesc(); }
 
-    public List<Documento> buscar(String texto, TipoDocumento tipo, LocalDate desde, LocalDate hasta, Integer anio) {
-        if (texto != null && !texto.isBlank()) return repository.buscarPorTexto(texto.trim());
-        if (tipo != null) return repository.findByTipoAndEliminadoFalse(tipo);
-        if (desde != null && hasta != null) return repository.findByFechaExactaBetweenAndEliminadoFalse(desde, hasta);
-        if (anio != null) return repository.findByAnioAproximadoAndEliminadoFalse(anio);
-        return repository.findAllByEliminadoFalse();
+    public List<Documento> buscar(String texto, TipoDocumento tipo,
+                                  LocalDate desde, LocalDate hasta, Integer anio) {
+        String t = (texto != null && !texto.isBlank()) ? texto.trim() : null;
+        return repository.buscarCombinado(t, tipo, desde, hasta, anio);
     }
 
     public void eliminarDocumento(UUID id) {
@@ -198,5 +196,29 @@ public class DocumentoService {
         if (contenido == null || contenido.length == 0) throw new IllegalArgumentException("El archivo es obligatorio");
         if (!FORMATOS_PERMITIDOS.contains(tipoMime != null ? tipoMime.toLowerCase() : "")) throw new IllegalArgumentException("Formato no permitido. Use PDF, JPG o PNG");
         if (contenido.length > TAMANIO_MAXIMO) throw new IllegalArgumentException("El archivo supera los 50 MB");
+    }
+
+    public int reindexarOcrFaltante(java.util.function.Consumer<Integer> onProgress) {
+        var docs = repository.findAllByEliminadoFalse().stream()
+                .filter(d -> d.getTextoOcr() == null || d.getTextoOcr().isBlank())
+                .filter(d -> d.getRutaArchivo() != null && !d.getRutaArchivo().isBlank())
+                .toList();
+
+        int total = docs.size();
+        int hechos = 0;
+        for (Documento d : docs) {
+            try {
+                String txt = ocrService.extraerTexto(new java.io.File(d.getRutaArchivo()));
+                if (txt != null && !txt.isBlank()) {
+                    d.setTextoOcr(txt.trim());
+                    repository.save(d);
+                }
+                hechos++;
+                if (onProgress != null) onProgress.accept(hechos);
+            } catch (Exception e) {
+                System.err.println("Fallo re-indexando " + d.getId() + ": " + e.getMessage());
+            }
+        }
+        return hechos;
     }
 }
