@@ -1,6 +1,7 @@
 package com.archivum.ui;
 
 import com.archivum.model.Documento;
+import com.archivum.model.TipoDocumento;
 import com.archivum.service.AjustesService;
 import com.archivum.service.AuthService;
 import com.archivum.service.BackupService;
@@ -29,6 +30,7 @@ import org.springframework.stereotype.Component;
 import java.io.File;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Map;
 
 @Component
 public class MainWindow extends Application {
@@ -140,11 +142,25 @@ public class MainWindow extends Application {
         bar.setAlignment(Pos.CENTER_RIGHT);
         bar.setPadding(new Insets(8, 20, 8, 20));
         bar.setStyle("-fx-background-color: transparent;");
-        Button c = new Button("✕");
-        c.setStyle("-fx-background-color: transparent; -fx-text-fill: #9CA3AF; -fx-font-size: 16px; -fx-cursor: hand; -fx-font-weight: bold;");
-        c.setOnMouseEntered(e -> c.setStyle("-fx-background-color: #FEE2E2; -fx-text-fill: #EF4444; -fx-font-size: 16px; -fx-cursor: hand; -fx-background-radius: 6px;"));
-        c.setOnMouseExited(e -> c.setStyle("-fx-background-color: transparent; -fx-text-fill: #9CA3AF; -fx-font-size: 16px; -fx-cursor: hand; -fx-font-weight: bold;"));
+
+        FontIcon closeIcon = new FontIcon("fas-times");
+        closeIcon.setIconSize(16);
+        closeIcon.setIconColor(Color.web("#9CA3AF"));
+
+        Button c = new Button();
+        c.setGraphic(closeIcon);
+        c.setStyle("-fx-background-color: transparent; -fx-cursor: hand; -fx-padding: 6px;");
+
+        c.setOnMouseEntered(e -> {
+            c.setStyle("-fx-background-color: #FEE2E2; -fx-cursor: hand; -fx-background-radius: 6px; -fx-padding: 6px;");
+            closeIcon.setIconColor(Color.web("#EF4444"));
+        });
+        c.setOnMouseExited(e -> {
+            c.setStyle("-fx-background-color: transparent; -fx-cursor: hand; -fx-padding: 6px;");
+            closeIcon.setIconColor(Color.web("#9CA3AF"));
+        });
         c.setOnAction(e -> { context.close(); Platform.exit(); });
+
         bar.getChildren().add(c);
         return bar;
     }
@@ -208,11 +224,20 @@ public class MainWindow extends Application {
 
         Button btnBackup = btnSidebar("Copias de seguridad", "fas-save", false, () -> new BackupDialog(backupService, context, stage, this::recargarInicio).mostrar());
         btnBackup.setManaged(authService.isAdministrador());
+        btnBackup.setVisible(authService.isAdministrador());
+        btnBackup.setManaged(authService.isAdministrador());
 
-        Button btnAjustes = btnSidebar("Ajustes", "fas-cog", false, () -> new AjustesDialog(ajustesService, authService, stage).mostrar());
+        Button btnUsuarios = btnSidebar("Gestión de usuarios", "fas-users-cog", false,
+                () -> new GestionUsuariosDialog(authService, stage).mostrar());
+        btnUsuarios.setVisible(authService.isAdministrador());
+        btnUsuarios.setManaged(authService.isAdministrador());
+
+        Button btnAjustes = btnSidebar("Ajustes", "fas-cog", false,
+                () -> new AjustesDialog(ajustesService, authService, stage).mostrar());
+        btnAjustes.setVisible(authService.isAdministrador());
         btnAjustes.setManaged(authService.isAdministrador());
 
-        nav.getChildren().addAll(btnInicio, btnNuevo, btnPapelera, btnBackup, btnAjustes);
+        nav.getChildren().addAll(btnInicio, btnNuevo, btnPapelera, btnBackup, btnUsuarios, btnAjustes);
 
         Region sp = new Region();
         VBox.setVgrow(sp, Priority.ALWAYS);
@@ -275,41 +300,83 @@ public class MainWindow extends Application {
     private VBox crearContenido() {
         VBox c = new VBox(0);
         VBox.setVgrow(c, Priority.ALWAYS);
-        c.getChildren().addAll(crearDashboard(), crearSeccionTabla());
+
+        if (authService.isAdministrador()) {
+            c.getChildren().addAll(crearDashboard(), crearSeccionTabla());
+        } else {
+            // El consultor no ve la tabla general: navega por categorías
+            ScrollPane sp = new ScrollPane(crearDashboard());
+            sp.setFitToWidth(true);
+            sp.setStyle("-fx-background-color: #F4F7F5; -fx-background: #F4F7F5;");
+            sp.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+            sp.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+            VBox.setVgrow(sp, Priority.ALWAYS);
+            c.getChildren().add(sp);
+        }
         return c;
     }
 
     private VBox crearDashboard() {
-        VBox db = new VBox(20);
+        VBox db = new VBox(18);
         db.setPadding(new Insets(10, 32, 20, 32));
 
-        Label tit = new Label("Dashboard General");
+        boolean esAdmin = authService.isAdministrador();
+
+        // --- CABECERA CON LOGO A LA DERECHA ---
+        Label tit = new Label(ajustesService.getNombreInstitucion());
         tit.setFont(Font.font("Segoe UI", FontWeight.BOLD, 24));
         tit.setStyle("-fx-text-fill: #12261A;");
 
-        Label fecha = new Label(LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM 'de' yyyy")));
-        fecha.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 14));
+        Label subtitulo = new Label(esAdmin
+                ? "Panel de administración documental"
+                : "Sistema de consulta documental");
+        subtitulo.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
+        subtitulo.setStyle("-fx-text-fill: #2A6B44; -fx-font-weight: bold;");
+
+        Label fecha = new Label(LocalDate.now().format(
+                DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM 'de' yyyy")));
+        fecha.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
         fecha.setStyle("-fx-text-fill: #6B7A70;");
 
-        VBox headerText = new VBox(2);
-        headerText.getChildren().addAll(tit, fecha);
+        VBox headerText = new VBox(3, tit, subtitulo, fecha);
 
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        HBox header = new HBox(20, headerText, spacer);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        ImageView logo = cargarLogoInstitucion();
+        if (logo != null) header.getChildren().add(logo);
+
+        db.getChildren().add(header);
+
+        // --- TARJETAS ---
         HBox tarjetas = new HBox(20);
         tarjetas.setPadding(new Insets(10, 0, 10, 0));
 
-        VBox t1 = tarjeta("Documentos archivados", "0", "#CFA144");
-        totalDocsLabel = (Label) t1.getChildren().get(1);
-        tarjetas.getChildren().add(t1);
+        if (esAdmin) {
+            VBox t1 = tarjeta("Documentos archivados", "0", "#CFA144");
+            totalDocsLabel = (Label) t1.getChildren().get(1);
 
-        if (authService.isAdministrador()) {
             VBox t2 = tarjeta("En papelera", "0", "#8A3636");
             papeleraCountLabel = (Label) t2.getChildren().get(1);
+
             VBox t3 = tarjeta("Última copia de seguridad", "Nunca", "#2A6B44");
             ultimoBackupLabel = (Label) t3.getChildren().get(1);
-            tarjetas.getChildren().addAll(t2, t3);
+
+            tarjetas.getChildren().addAll(t1, t2, t3);
+            db.getChildren().add(tarjetas);
+
+        } else {
+            Label lblCat = new Label("Categorías de documentos");
+            lblCat.setFont(Font.font("Segoe UI", FontWeight.BOLD, 16));
+            lblCat.setStyle("-fx-text-fill: #12261A; -fx-padding: 5 0 0 0;");
+
+            FlowPane categorias = crearCategoriasConsulta();
+            db.getChildren().addAll(lblCat, categorias);
         }
 
-        db.getChildren().addAll(headerText, tarjetas);
         return db;
     }
 
@@ -334,6 +401,99 @@ public class MainWindow extends Application {
 
         t.getChildren().addAll(bar, vl, lb);
         return t;
+    }
+
+    private ImageView cargarLogoInstitucion() {
+        String ruta = ajustesService.getLogoRuta();
+        Image img = null;
+
+        if (ruta != null && !ruta.isBlank()) {
+            File f = new File(ruta);
+            if (f.exists()) {
+                try { img = new Image(f.toURI().toString()); }
+                catch (Exception ignored) {}
+            }
+        }
+        if (img == null || img.isError()) {
+            img = cargarImagenSidebar(); // fallback al icono de la app
+        }
+        if (img == null) return null;
+
+        ImageView iv = new ImageView(img);
+        iv.setFitWidth(80);
+        iv.setFitHeight(80);
+        iv.setPreserveRatio(true);
+        iv.setSmooth(true);
+        return iv;
+    }
+
+    private FlowPane categoriasPane;
+
+    private FlowPane crearCategoriasConsulta() {
+        categoriasPane = new FlowPane(16, 16);
+        categoriasPane.setPadding(new Insets(5, 0, 5, 0));
+        categoriasPane.setPrefWrapLength(900);
+        refrescarCategorias();
+        return categoriasPane;
+    }
+
+    private void refrescarCategorias() {
+        if (categoriasPane == null) return;
+        categoriasPane.getChildren().clear();
+
+        Map<TipoDocumento, Long> porTipo = service.obtenerTodos().stream()
+                .filter(d -> d.getTipo() != null)
+                .collect(java.util.stream.Collectors.groupingBy(
+                        Documento::getTipo,
+                        java.util.stream.Collectors.counting()));
+
+        for (TipoDocumento tipo : TipoDocumento.values()) {
+            long count = porTipo.getOrDefault(tipo, 0L);
+            categoriasPane.getChildren().add(crearCategoriaCard(tipo, count));
+        }
+    }
+
+    private VBox crearCategoriaCard(TipoDocumento tipo, long count) {
+        VBox card = new VBox(6);
+        card.setPadding(new Insets(16, 20, 16, 20));
+        card.setPrefWidth(200);
+        aplicarEstiloCard(card, false);
+
+        Label lblTipo = new Label(tipo.getEtiqueta());
+        lblTipo.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
+        lblTipo.setStyle("-fx-text-fill: #12261A;");
+
+        Label lblCount = new Label(String.valueOf(count));
+        lblCount.setFont(Font.font("Segoe UI", FontWeight.BOLD, 22));
+        lblCount.setStyle("-fx-text-fill: #2A6B44;");
+
+        Label lblSuf = new Label(count == 1 ? "documento" : "documentos");
+        lblSuf.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 11));
+        lblSuf.setStyle("-fx-text-fill: #6B7A70;");
+
+        card.getChildren().addAll(lblTipo, lblCount, lblSuf);
+
+        card.setOnMouseEntered(e -> aplicarEstiloCard(card, true));
+        card.setOnMouseExited(e -> aplicarEstiloCard(card, false));
+        card.setOnMouseClicked(e -> abrirCategoria(tipo));
+
+        return card;
+    }
+
+    private void aplicarEstiloCard(VBox card, boolean hover) {
+        String bg = hover ? "#F4F7F5" : "#FFFFFF";
+        String border = hover ? "#CFA144" : "transparent";
+        String shadow = hover
+                ? "rgba(18, 38, 26, 0.12), 12, 0, 0, 4"
+                : "rgba(18, 38, 26, 0.06), 10, 0, 0, 3";
+        card.setStyle("-fx-background-color: " + bg + "; -fx-background-radius: 10px; "
+                + "-fx-effect: dropshadow(three-pass-box, " + shadow + "); "
+                + "-fx-cursor: hand; -fx-border-color: " + border
+                + "; -fx-border-width: 2px; -fx-border-radius: 10px;");
+    }
+
+    private void abrirCategoria(TipoDocumento tipo) {
+        new CategoriaDocumentosDialog(service, authService, tipo, stage).mostrar();
     }
 
     private VBox crearSeccionTabla() {
@@ -364,10 +524,16 @@ public class MainWindow extends Application {
         Region sp = new Region();
         HBox.setHgrow(sp, Priority.ALWAYS);
 
-        Button nuevo = new Button("+ Nuevo documento");
+        Button nuevo = new Button("Nuevo documento");
+        FontIcon plusIcon = new FontIcon("fas-plus");
+        plusIcon.setIconSize(12);
+        plusIcon.setIconColor(Color.WHITE);
+        nuevo.setGraphic(plusIcon);
+        nuevo.setGraphicTextGap(6);
         nuevo.setStyle("-fx-background-color: #2A6B44; -fx-text-fill: white; -fx-background-radius: 6px; -fx-padding: 10px 20px; -fx-font-weight: bold; -fx-cursor: hand;");
         nuevo.setOnAction(e -> nuevoDocumento());
         nuevo.setVisible(authService.isAdministrador());
+        nuevo.setManaged(authService.isAdministrador());
 
         toolbar.getChildren().addAll(tSec, busquedaField, filtros, sp, nuevo);
 
@@ -434,12 +600,11 @@ public class MainWindow extends Application {
     }
 
     private void actualizarDashboard() {
-        // 1. Documentos totales (lo ven todos)
-        if (totalDocsLabel != null) {
+        // Total de documentos — siempre se actualiza si la etiqueta existe
+        if (totalDocsLabel != null)
             totalDocsLabel.setText(String.valueOf(service.contarDocumentos()));
-        }
 
-        // 2. Estadísticas sensibles (solo las actualizamos si el usuario es Admin)
+        // Métricas sensibles — solo existen para el admin
         if (authService.isAdministrador()) {
             if (papeleraCountLabel != null) {
                 papeleraCountLabel.setText(String.valueOf(service.contarDocumentosEnPapelera()));
@@ -449,24 +614,32 @@ public class MainWindow extends Application {
                 if (bd.exists()) {
                     File[] bk = bd.listFiles((d, n) -> n.endsWith(".zip"));
                     if (bk != null && bk.length > 0) {
-                        java.util.Arrays.sort(bk, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
-                        ultimoBackupLabel.setText(new java.text.SimpleDateFormat("dd/MM/yyyy").format(bk[0].lastModified()));
+                        java.util.Arrays.sort(bk,
+                                (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+                        ultimoBackupLabel.setText(
+                                new java.text.SimpleDateFormat("dd/MM/yyyy")
+                                        .format(bk[0].lastModified()));
                         return;
                     }
                 }
                 ultimoBackupLabel.setText("Nunca");
             }
         }
+        refrescarCategorias();
     }
 
     private void cargarDocumentos() {
-        documentosList.setAll(service.obtenerTodos());
+        if (documentosList != null) {
+            documentosList.setAll(service.obtenerTodos());
+        }
         actualizarDashboard();
     }
 
     private void buscar() {
+        if (documentosList == null) return;
         String t = busquedaField.getText();
         documentosList.setAll((t == null || t.isBlank()) ? service.obtenerTodos() : service.buscar(t, null, null, null, null));
+
     }
 
     private void recargarInicio() {
@@ -475,6 +648,7 @@ public class MainWindow extends Application {
     }
 
     private void mostrarFiltros() {
+        if (documentosList == null) return;
         FiltroDialog f = new FiltroDialog(stage);
         if (f.mostrar())
             documentosList.setAll(service.buscar(null, f.getTipo(), f.getDesde(), f.getHasta(), f.getAnio()));
@@ -522,6 +696,7 @@ public class MainWindow extends Application {
     }
 
     private void cerrarSesion() {
+        authService.logout();
         stage.close();
         LoginWindow loginWindow = context.getBean(LoginWindow.class);
         loginWindow.iniciar(new Stage());
