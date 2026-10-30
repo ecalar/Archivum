@@ -17,6 +17,7 @@ import java.time.LocalDate;
 public class FiltroDialog {
 
     private final Stage parentStage;
+    private final boolean mostrarCategoria;
     private Stage stage;
     private ComboBox<TipoDocumento> tipoCombo;
     private DatePicker desdePicker;
@@ -24,8 +25,15 @@ public class FiltroDialog {
     private TextField anioField;
     private boolean aplicar = false;
 
+    /** Constructor original — muestra también el desplegable de categoría. */
     public FiltroDialog(Stage parentStage) {
+        this(parentStage, true);
+    }
+
+    /** Constructor nuevo — si mostrarCategoria=false, oculta el desplegable de tipo. */
+    public FiltroDialog(Stage parentStage, boolean mostrarCategoria) {
         this.parentStage = parentStage;
+        this.mostrarCategoria = mostrarCategoria;
     }
 
     public boolean mostrar() {
@@ -49,28 +57,37 @@ public class FiltroDialog {
         titulo.setStyle("-fx-text-fill: #12261A;");
         headerBox.getChildren().addAll(filterIcon, titulo);
 
-        Label tipoLabel = new Label("Tipo de documento:");
-        tipoLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #4D6B58;");
-        tipoCombo = new ComboBox<>();
-        tipoCombo.getItems().add(null);
-        tipoCombo.getItems().addAll(TipoDocumento.values());
-        tipoCombo.setPromptText("Todos los tipos");
-        tipoCombo.setMaxWidth(Double.MAX_VALUE);
-        tipoCombo.setCellFactory(lv -> new ListCell<>() {
-            @Override
-            protected void updateItem(TipoDocumento item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? "Todos los tipos" : item.getEtiqueta());
-            }
-        });
-        tipoCombo.setButtonCell(new ListCell<>() {
-            @Override
-            protected void updateItem(TipoDocumento item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? "Todos los tipos" : item.getEtiqueta());
-            }
-        });
+        root.getChildren().addAll(headerBox, new Separator());
 
+        // --- CATEGORÍA (solo si procede) ---
+        if (mostrarCategoria) {
+            Label tipoLabel = new Label("Tipo de documento:");
+            tipoLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #4D6B58;");
+
+            tipoCombo = new ComboBox<>();
+            tipoCombo.getItems().add(null);
+            tipoCombo.getItems().addAll(TipoDocumento.values());
+            tipoCombo.setPromptText("Todos los tipos");
+            tipoCombo.setMaxWidth(Double.MAX_VALUE);
+            tipoCombo.setCellFactory(lv -> new ListCell<>() {
+                @Override
+                protected void updateItem(TipoDocumento item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? "Todos los tipos" : item.getEtiqueta());
+                }
+            });
+            tipoCombo.setButtonCell(new ListCell<>() {
+                @Override
+                protected void updateItem(TipoDocumento item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? "Todos los tipos" : item.getEtiqueta());
+                }
+            });
+
+            root.getChildren().addAll(tipoLabel, tipoCombo);
+        }
+
+        // --- FECHAS ---
         Label fechasLabel = new Label("Rango de fechas:");
         fechasLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #4D6B58;");
         HBox fechasBox = new HBox(12);
@@ -83,12 +100,16 @@ public class FiltroDialog {
         hastaPicker.setPromptText("Hasta");
         fechasBox.getChildren().addAll(desdePicker, separador, hastaPicker);
 
+        // --- AÑO ---
         Label anioLabel = new Label("Año aproximado:");
         anioLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #4D6B58;");
         anioField = new TextField();
         anioField.setPromptText("Ej: 1814");
         anioField.setMaxWidth(100);
 
+        root.getChildren().addAll(fechasLabel, fechasBox, anioLabel, anioField);
+
+        // --- BOTONES ---
         HBox botonesBox = new HBox(12);
         botonesBox.setAlignment(Pos.CENTER_RIGHT);
         botonesBox.setPadding(new Insets(15, 0, 0, 0));
@@ -99,7 +120,7 @@ public class FiltroDialog {
         limpiarBtn.setGraphic(eraserIcon);
         limpiarBtn.setStyle("-fx-background-color: #FAFCFB; -fx-text-fill: #4D6B58; -fx-border-color: #D1DED5; -fx-border-radius: 6px; -fx-background-radius: 6px; -fx-padding: 8px 16px; -fx-cursor: hand;");
         limpiarBtn.setOnAction(e -> {
-            tipoCombo.setValue(null);
+            if (tipoCombo != null) tipoCombo.setValue(null);
             desdePicker.setValue(null);
             hastaPicker.setValue(null);
             anioField.clear();
@@ -122,21 +143,18 @@ public class FiltroDialog {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         botonesBox.getChildren().addAll(limpiarBtn, spacer, cancelarBtn, aplicarBtn);
+        root.getChildren().add(botonesBox);
 
-        root.getChildren().addAll(headerBox, new Separator(), tipoLabel, tipoCombo, fechasLabel, fechasBox, anioLabel, anioField, botonesBox);
-
-        Scene scene = new Scene(root, 450, 420);
+        Scene scene = new Scene(root, 450, mostrarCategoria ? 420 : 320);
         stage.setScene(scene);
-
         stage.setMinWidth(450);
-        stage.setMinHeight(420);
+        stage.setMinHeight(mostrarCategoria ? 420 : 320);
 
         stage.showAndWait();
-
         return aplicar;
     }
 
-    public TipoDocumento getTipo() { return tipoCombo.getValue(); }
+    public TipoDocumento getTipo() { return tipoCombo != null ? tipoCombo.getValue() : null; }
     public LocalDate getDesde() { return desdePicker.getValue(); }
     public LocalDate getHasta() { return hastaPicker.getValue(); }
     public Integer getAnio() {
